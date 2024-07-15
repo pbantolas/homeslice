@@ -5,12 +5,18 @@
   "main": "src/main.ts",
   "scripts": {
     "build": "tsc && npm run build:cp-public",
-	"build:cp-public": "cp ./public/** ./dist",
-	"serve": "live-server dist/index.html --verbose"
+    "build:cp-public": "cp -R ./public/** ./dist",
+	"watch": "tsc --watch",
+    "serve": "live-server dist/index.html --verbose"
   },
   "author": "Petros Bantolas",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.5.3"
+    "@types/three": "^0.166.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.3"
+  },
+  "dependencies": {
+    "three": "^0.166.1"
   }
 }

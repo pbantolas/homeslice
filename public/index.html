@@ -4,10 +4,29 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<title>Slicer</title>
+
+		<style>
+body {
+	margin: 0;
+}
+
+		#dropzone {
+			width: 80vw;
+			height: 200px;
+			margin: 0 auto;
+		}
+
+		.highlight {
+			border: 1px solid #000;
+		}
+		</style>
 	</head>
 
 	<body>
-		<script src="main.js"></script>
+		<div id="dropzone">
+			Drag files here
+		</div>
+		<script type="module" src="./main.js"></script>
 	</body>
 
 </html>
