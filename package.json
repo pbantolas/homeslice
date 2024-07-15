@@ -1,0 +1,16 @@
+{
+  "name": "petros-slicer",
+  "version": "1.0.0",
+  "description": "A web slicer",
+  "main": "src/main.ts",
+  "scripts": {
+    "build": "tsc && npm run build:cp-public",
+	"build:cp-public": "cp ./public/** ./dist",
+	"serve": "live-server dist/index.html --verbose"
+  },
+  "author": "Petros Bantolas",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  }
+}
