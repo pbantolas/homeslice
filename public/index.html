@@ -10,21 +10,34 @@ body {
 	margin: 0;
 }
 
+		.dropzone-parent {
+			position: fixed;
+			z-index: 1000;
+			top: 0;
+			left: 0;
+			display: flex;
+			justify-content: center;
+			align-items:center;
+			height: 100vh;
+		}
 		#dropzone {
 			width: 80vw;
-			height: 200px;
-			margin: 0 auto;
+			height: 50vh;
+			opacity: 0;
+				background-color: #000;
 		}
 
 		.highlight {
-			border: 1px solid #000;
+			opacity: 0.5 !important;
 		}
 		</style>
 	</head>
 
 	<body>
+		<div class="dropzone-parent">
 		<div id="dropzone">
 			Drag files here
+		</div>
 		</div>
 		<script type="module" src="./main.js"></script>
 	</body>
