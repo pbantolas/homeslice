@@ -1,46 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Slicer</title>
 
 		<style>
-body {
-	margin: 0;
-}
+			body {
+				margin: 0;
+			}
 
-		.dropzone-parent {
-			position: fixed;
-			z-index: 1000;
-			top: 0;
-			left: 0;
-			display: flex;
-			justify-content: center;
-			align-items:center;
-			height: 100vh;
-		}
-		#dropzone {
-			width: 80vw;
-			height: 50vh;
-			opacity: 0;
+			.dropzone-parent {
+				position: fixed;
+				z-index: 1000;
+				top: 0;
+				left: 0;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 100vh;
+			}
+			#dropzone {
+				width: 80vw;
+				height: 50vh;
+				opacity: 0;
 				background-color: #000;
-		}
+			}
 
-		.highlight {
-			opacity: 0.5 !important;
-		}
+			.highlight {
+				opacity: 0.5 !important;
+			}
+
+			.status-bar {
+				position: fixed;
+				width: 100vw;
+				bottom: 0;
+				left: 0;
+				opacity: 0.5;
+				background-color: #000;
+				color: #fff;
+			}
 		</style>
 	</head>
 
 	<body>
 		<div class="dropzone-parent">
-		<div id="dropzone">
-			Drag files here
+			<div id="dropzone">Drag files here</div>
 		</div>
-		</div>
+		<div id="status-bar" class="status-bar">status</div>
 		<script type="module" src="./main.js"></script>
 	</body>
-
 </html>
-
