@@ -66,11 +66,11 @@ class App {
 		this.camera.lookAt(new THREE.Vector3(0,0,0));
 		this.cameraController.update();
 
-		const planeGeo = new THREE.PlaneGeometry(100, 100);
-		const planeMat = new THREE.MeshStandardMaterial({color: 0x00ff00, transparent: true, opacity: 0.5});
-		const planeMesh = new THREE.Mesh(planeGeo, planeMat);
-		this.scene.add(planeMesh);
-		planeMesh.position.z = 2.2;
+		// const planeGeo = new THREE.PlaneGeometry(100, 100);
+		// const planeMat = new THREE.MeshStandardMaterial({color: 0x00ff00, transparent: true, opacity: 0.5});
+		// const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+		// this.scene.add(planeMesh);
+		// planeMesh.position.z = 2.2;
 		// planeMesh.rotation.x = -Math.PI/2;
 		// const gridHelper = new THREE.GridHelper(250, 10);
 		// this.scene.add(gridHelper)
@@ -159,7 +159,7 @@ class App {
 					mat = new THREE.MeshBasicMaterial({wireframe: true});
 				}
 
-				stlGeometry.center();
+				// stlGeometry.center();
 
 				let mesh = new THREE.Mesh(stlGeometry, mat);
 				// mesh.receiveShadow = true;
@@ -176,9 +176,13 @@ class App {
 				}
 
 				mesh.position.y -= this.groundGeometry(stlGeometry);
-				this.scene.add(mesh);
+				// this.scene.add(mesh);
 				if (this.loadedMeshes.length > 0) {
-					this.scene.remove(this.loadedMeshes[0]);
+					// this.scene.remove(this.loadedMeshes[0]);
+					for (let m of this.loadedMeshes) {
+						this.scene.remove(m);
+					}
+					this.loadedMeshes = [];
 				} else {
 					this.loadedMeshes.push(new THREE.Mesh());
 				}
@@ -186,6 +190,26 @@ class App {
 				this.activeSlicer = new Slicer();
 				this.activeSlicer.importMesh(mesh);
 				this.activeSlicer.stats();
+
+				let layerIx = 0;
+				setInterval(() => {
+					for (let m of this.loadedMeshes) {
+						this.scene.remove(m);
+					}
+					this.loadedMeshes = [];
+					let sliceGeo = this.activeSlicer?.slice(layerIx);
+					sliceGeo?.computeVertexNormals();
+					if (sliceGeo) {
+						let basicMat = new THREE.MeshStandardMaterial({
+							side: THREE.DoubleSide,
+							color: 0xff0000,
+						});
+						let slicedMesh = new THREE.Mesh(sliceGeo, basicMat);
+						this.scene.add(slicedMesh);
+						this.loadedMeshes.push(slicedMesh);
+					}
+					layerIx++;
+				}, 200);
 			}
 		});
 
