@@ -2,15 +2,18 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader';
 import {STLLoader} from 'three/examples/jsm/loaders/STLLoader';
 import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader';
-import {Slicer} from 'slicer';
+import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
+import {Slicer} from './slicer';
 
 class App {
 	scene: THREE.Scene;
 	camera: THREE.Camera;
 	renderer: THREE.WebGLRenderer;
+	cameraController: OrbitControls;
 	loadedMeshes: THREE.Mesh[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: Slicer;
+	debug = false;
 
 	constructor(statusBar : HTMLElement | null) {
 		this.scene = new THREE.Scene();
@@ -43,6 +46,8 @@ class App {
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
 		document.body.appendChild(this.renderer.domElement);
 
+		this.cameraController = new OrbitControls(this.camera, this.renderer.domElement);
+
 		const light = new THREE.DirectionalLight(0xffffff, 1.0);
 		light.position.set(1, 0, 1);
 		light.castShadow = true;
@@ -59,6 +64,7 @@ class App {
 		this.camera.position.z = 80;
 		this.camera.position.y = 200;
 		this.camera.lookAt(new THREE.Vector3(0,0,0));
+		this.cameraController.update();
 
 		const planeGeo = new THREE.PlaneGeometry(100, 100);
 		const planeMat = new THREE.MeshStandardMaterial({color: 0x00ff00, transparent: true, opacity: 0.5});
@@ -86,7 +92,7 @@ class App {
 	}
 
 	addDragHandling(el : HTMLElement) {
-		el.addEventListener('dragover', (ev) => {
+		window.addEventListener('dragover', (ev) => {
 			ev.preventDefault();
 		});
 		el.addEventListener('drop', (ev) => {
@@ -97,13 +103,15 @@ class App {
 				console.log(`Loading STL: ${files[0].name}`);
 				this.loadFile(files[0]);
 			}
-			el.classList.remove('highlight');
+			el.classList.remove("active");
 		});
-		el.addEventListener('dragenter', (ev) => {
-			el.classList.add('highlight');
+		window.addEventListener('dragenter', (ev) => {
+			ev.preventDefault();
+			el.classList.add('active');
 		});
 		el.addEventListener('dragleave', (ev) => {
-			el.classList.remove('highlight');
+			ev.preventDefault();
+			el.classList.remove("active");
 		});
 	}
 
@@ -133,6 +141,7 @@ class App {
 		// this.loadedMeshes.forEach((m) => {
 		// 	m.rotation.y += 0.005;
 		// });
+		this.cameraController.update();
 		this.renderer.render(this.scene, this.camera);
 	}
 
@@ -142,7 +151,16 @@ class App {
 			if (reader.readyState == FileReader.DONE && reader.result != null) {
 				const loader = new STLLoader();
 				let stlGeometry = loader.parse(reader.result);
-				let mat = new THREE.MeshStandardMaterial({color: 0xaaaaaa});
+				let mat : THREE.Material = new THREE.MeshStandardMaterial({
+					color: 0xaaaaaa,
+					side: THREE.DoubleSide,
+				});
+				if (this.debug) {
+					mat = new THREE.MeshBasicMaterial({wireframe: true});
+				}
+
+				stlGeometry.center();
+
 				let mesh = new THREE.Mesh(stlGeometry, mat);
 				// mesh.receiveShadow = true;
 				mesh.castShadow = true;
@@ -176,5 +194,5 @@ class App {
 }
 
 const app : App = new App(document.querySelector('#status-bar'));
-app.addScrollHandling(document.querySelector('canvas')!);
+//app.addScrollHandling(document.querySelector('canvas')!);
 app.addDragHandling(document.querySelector('#dropzone')!);

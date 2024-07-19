@@ -4,10 +4,7 @@
   "description": "A web slicer",
   "main": "src/main.ts",
   "scripts": {
-    "build": "tsc && npm run build:cp-public",
-    "build:cp-public": "cp -R ./public/** ./dist",
-	"watch": "tsc --watch",
-    "serve": "live-server dist/index.html --verbose"
+	"dev": "vite"
   },
   "author": "Petros Bantolas",
   "license": "MIT",
