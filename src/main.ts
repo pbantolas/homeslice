@@ -94,7 +94,11 @@ class App {
 		gltfLoader.load('assets/pei_plate_2.glb', (gltf) => {
 			gltf.scene.scale.set(100, 100, 100);
 			gltf.scene.traverse((node) => {
-				if (node.isObject3D) { node.receiveShadow = true;}
+				if (node.isObject3D) { node.receiveShadow = true;
+					if (node instanceof THREE.Mesh) {
+						node.material.roughness = 0.8;
+					}
+				}
 			});
 			this.scene.add(gltf.scene);
 		}, undefined, (err) => {
@@ -223,34 +227,16 @@ class App {
 				this.activeSlicer.importObject(slicerInputGroup);
 				this.activeSlicer.stats();
 
-				let slicedGeometry = this.activeSlicer?.slice(15);
+				let slicedGeometry = this.activeSlicer?.slice(0);
 				if (slicedGeometry) {
-					slicedGeometry.computeVertexNormals();
-					let basicMaterial = new THREE.MeshStandardMaterial();
+					let basicMaterial = new THREE.MeshStandardMaterial({
+						side: THREE.DoubleSide,
+						color: 0xe06100
+					});
 					let slicedMesh = new THREE.Mesh(slicedGeometry, basicMaterial);
 					this.scene.add(slicedMesh);
 					this.sceneGraph.push(slicedMesh);
 				}
-
-				// let layerIx = 0;
-				// setInterval(() => {
-				// 	for (let m of this.sceneGraph) {
-				// 		this.scene.remove(m);
-				// 	}
-				// 	this.sceneGraph = [];
-				// 	let sliceGeo = this.activeSlicer?.slice(layerIx);
-				// 	sliceGeo?.computeVertexNormals();
-				// 	if (sliceGeo) {
-				// 		let basicMat = new THREE.MeshStandardMaterial({
-				// 			side: THREE.DoubleSide,
-				// 			color: 0xff0000,
-				// 		});
-				// 		let slicedMesh = new THREE.Mesh(sliceGeo, basicMat);
-				// 		this.scene.add(slicedMesh);
-				// 		this.sceneGraph.push(slicedMesh);
-				// 	}
-				// 	layerIx++;
-				// }, 200);
 			}
 		});
 

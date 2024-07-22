@@ -1,8 +1,21 @@
 import * as THREE from 'three';
+import Buffer from 'three/examples/jsm/renderers/common/Buffer';
 import ClippingContext from 'three/examples/jsm/renderers/common/ClippingContext';
 import NodeUniformsGroup from 'three/examples/jsm/renderers/common/nodes/NodeUniformsGroup';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils';
+
+enum ClipType {
+	Below,
+	Above
+}
+
+interface TriangleClipTask {
+	type: ClipType,
+	tri: THREE.Triangle
+}
+
 export class Slicer {
-	layerHeight: number = 0.2;
+	layerHeight: number = 0.36;
 	object?: THREE.Object3D;
 	bbox: THREE.Box3;
 	constructor() {
@@ -59,11 +72,12 @@ export class Slicer {
 				triCount = vertexCount / 3;
 			console.log("Num triangles: ", triCount);
 
-			let slicePositionBuffer: Array<number> = [];
-
 			const sliceStartTime = performance.now();
 
-			const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), this.layerHeight * layerIx);
+			const belowPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), this.layerHeight * layerIx);
+			const abovePlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), -this.layerHeight * (layerIx + 1));
+
+			let triangleListToProcess : Array<TriangleClipTask> = [];
 			for (let triIx = 0; triIx < triCount; triIx++) {
 				let vtx1 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
@@ -81,27 +95,67 @@ export class Slicer {
 				}
 				vtx3.add(baseObjectOffset);
 
-				let tri = new THREE.Triangle(vtx1, vtx2, vtx3);
+				// let tri = new THREE.Triangle(vtx1, vtx2, vtx3);
+				triangleListToProcess.push({
+					type: ClipType.Below,
+					tri: new THREE.Triangle(vtx1, vtx2, vtx3)
+				});
+			}
 
+			let clippedTrianglesOut : Array<THREE.Triangle> = [];
+			while (triangleListToProcess.length > 0) {
 				let clippedVtx = new THREE.Vector3();
-				let triangleClippingRes = this.clip3(tri, plane, clippedVtx);
+				let triangleTask = triangleListToProcess.pop() as TriangleClipTask;
 
-				if (triangleClippingRes > 0) {
-					slicePositionBuffer.push(tri.a.x, tri.a.y, tri.a.z, tri.b.x, tri.b.y, tri.b.z, tri.c.x, tri.c.y, tri.c.z);
-					if (triangleClippingRes == 4) {
-						slicePositionBuffer.push(tri.a.x, tri.a.y, tri.a.z, tri.c.x, tri.c.y, tri.c.z, clippedVtx.x, clippedVtx.y, clippedVtx.z);
-					}
+				switch (triangleTask.type) {
+					case ClipType.Below:
+						let clipResultBelow = this.clip3(triangleTask.tri, belowPlane, clippedVtx);
+						if (clipResultBelow > 0) {
+							let triTask1 : TriangleClipTask = {
+								type: ClipType.Above,
+								tri: new THREE.Triangle(triangleTask.tri.a, triangleTask.tri.b, triangleTask.tri.c)
+							};
+							triangleListToProcess.push(triTask1);
+
+							if (clipResultBelow > 3) {
+								let triTask2: TriangleClipTask = {
+									type: ClipType.Above,
+									tri: new THREE.Triangle(triangleTask.tri.a, triangleTask.tri.c, clippedVtx),
+								};
+								triangleListToProcess.push(triTask2);
+							}
+						}
+						break;
+					
+					case ClipType.Above:
+						let clipResultAbove = this.clip3(triangleTask.tri, abovePlane, clippedVtx);
+						if (clipResultAbove > 0) {
+							clippedTrianglesOut.push(new THREE.Triangle(triangleTask.tri.a, triangleTask.tri.b, triangleTask.tri.c));
+							if (clipResultAbove > 3) {
+								clippedTrianglesOut.push(new THREE.Triangle(triangleTask.tri.a, triangleTask.tri.c, clippedVtx));
+							}
+						}
+						break;
+				
+					default:
+						break;
 				}
+			}
+
+			let slicePositionBuffer: Array<number> = [];
+			for (let tri of clippedTrianglesOut) {
+				slicePositionBuffer.push(tri.a.x, tri.a.y, tri.a.z, tri.b.x, tri.b.y, tri.b.z, tri.c.x, tri.c.y, tri.c.z);
 			}
 
 			let sliceBufferGeometry = new THREE.BufferGeometry();
 			const sliceVerticesView = new Float32Array(slicePositionBuffer);
 			sliceBufferGeometry.setAttribute('position', new THREE.BufferAttribute(sliceVerticesView, 3));
+			BufferGeometryUtils.mergeVertices(sliceBufferGeometry);
+			sliceBufferGeometry.computeVertexNormals();
 
 			const sliceEndTime = performance.now();
-
-
 			console.log(`Slicing took ${sliceEndTime - sliceStartTime} ms`);
+
 			return sliceBufferGeometry;
 		}
 
