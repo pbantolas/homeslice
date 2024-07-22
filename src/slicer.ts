@@ -61,6 +61,8 @@ export class Slicer {
 
 			let slicePositionBuffer: Array<number> = [];
 
+			const sliceStartTime = performance.now();
+
 			const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), this.layerHeight * layerIx);
 			for (let triIx = 0; triIx < triCount; triIx++) {
 				let vtx1 = new THREE.Vector3();
@@ -95,6 +97,11 @@ export class Slicer {
 			let sliceBufferGeometry = new THREE.BufferGeometry();
 			const sliceVerticesView = new Float32Array(slicePositionBuffer);
 			sliceBufferGeometry.setAttribute('position', new THREE.BufferAttribute(sliceVerticesView, 3));
+
+			const sliceEndTime = performance.now();
+
+
+			console.log(`Slicing took ${sliceEndTime - sliceStartTime} ms`);
 			return sliceBufferGeometry;
 		}
 
@@ -119,7 +126,7 @@ export class Slicer {
 			return 0;
 
 		if ((dist.x >= -clipEps1) && (dist.y >= -clipEps1) && (dist.z >= -clipEps1)) {
-			clippedVtx = v0.clone();
+			clippedVtx.copy(v0);
 			return 3;
 		}
 
@@ -131,7 +138,7 @@ export class Slicer {
 
 		if (above[1] && !above[0]) {
 			nextIsAbove = above[2];
-			clippedVtx = v0.clone();
+			clippedVtx.copy(v0);
 			v0.copy(v1);
 			v1.copy(v2);
 			v2.copy(clippedVtx);
@@ -139,7 +146,7 @@ export class Slicer {
 		}
 		else if (above[2] && !above[1]) {
 			nextIsAbove = above[0];
-			clippedVtx = v2.clone();
+			clippedVtx.copy(v2);
 			v2.copy( v1 );
 			v1.copy( v0 );
 			v0.copy( clippedVtx );
