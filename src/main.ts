@@ -16,7 +16,7 @@ class App {
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: Slicer;
-	debug = true;
+	// debug = true;
 
 	constructor(statusBar : HTMLElement | null) {
 		this.scene = new THREE.Scene();
@@ -35,8 +35,8 @@ class App {
 				texture.mapping = THREE.EquirectangularReflectionMapping;
 				this.scene.environment = texture;
 				this.scene.environmentRotation.set(Math.PI/2, 0, Math.PI/2);
-				this.scene.environmentIntensity = 0.8;
-				this.scene.background = new THREE.Color("rgb(200, 200, 200)");
+				this.scene.environmentIntensity = 0.7;
+				this.scene.background = new THREE.Color("rgb(20, 20, 20)");
 				// this.scene.background = texture;
 				// this.scene.backgroundRotation = this.scene.environmentRotation;
 			});
@@ -96,7 +96,7 @@ class App {
 			gltf.scene.traverse((node) => {
 				if (node.isObject3D) { node.receiveShadow = true;
 					if (node instanceof THREE.Mesh) {
-						node.material.roughness = 0.8;
+						node.material.color.setHex(0x26262A);
 					}
 				}
 			});
@@ -224,18 +224,24 @@ class App {
 				this.sceneGraph.push(stlViewerGroup);
 
 				this.activeSlicer = new Slicer();
-				this.activeSlicer.importObject(slicerInputGroup);
-				this.activeSlicer.stats();
 
-				let slicedGeometry = this.activeSlicer?.slice(0);
-				if (slicedGeometry) {
-					let basicMaterial = new THREE.MeshStandardMaterial({
-						side: THREE.DoubleSide,
-						color: 0xe06100
-					});
-					let slicedMesh = new THREE.Mesh(slicedGeometry, basicMaterial);
-					this.scene.add(slicedMesh);
-					this.sceneGraph.push(slicedMesh);
+				if (this.activeSlicer) {
+					this.activeSlicer.importObject(slicerInputGroup);
+					this.activeSlicer.stats();
+
+					let slicedGeometry = this.activeSlicer.slice(0);
+					if (slicedGeometry) {
+						let basicMaterial = new THREE.MeshStandardMaterial({
+							side: THREE.DoubleSide,
+							color: 0xe06100,
+						});
+						let slicedMesh = new THREE.Mesh(
+							slicedGeometry,
+							basicMaterial
+						);
+						this.scene.add(slicedMesh);
+						this.sceneGraph.push(slicedMesh);
+					}
 				}
 			}
 		});

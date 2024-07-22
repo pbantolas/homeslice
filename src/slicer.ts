@@ -15,9 +15,10 @@ interface TriangleClipTask {
 }
 
 export class Slicer {
-	layerHeight: number = 0.36;
+	layerHeight: number = 0.2;
 	object?: THREE.Object3D;
 	bbox: THREE.Box3;
+	private cachedLayerCount = 0;
 	constructor() {
 		this.bbox = new THREE.Box3();
 	}
@@ -25,19 +26,20 @@ export class Slicer {
 	importObject(object: THREE.Object3D) {
 		this.object = object;
 		this.bbox = new THREE.Box3().setFromObject(this.object);
+
+		let meshSize = new THREE.Vector3();
+		this.bbox.getSize(meshSize);
+		this.cachedLayerCount = Math.ceil(meshSize.z / this.layerHeight);
 	}
 
 	stats() {
 		console.log("--- Slicer ---");
 		console.log("Layer Height: ", this.layerHeight);
+		console.log("Layers: ", this.cachedLayerCount);
+	}
 
-		let meshSize = new THREE.Vector3();
-		this.bbox.getSize(meshSize);
-		let nSlices = meshSize.z / this.layerHeight;
-
-		console.log("Layers: ", nSlices);
-
-		console.log(this.bbox.min);
+	get layerCount(): number {
+		return this.cachedLayerCount;
 	}
 
 	slice(layerIx : number): THREE.BufferGeometry | null {
@@ -55,6 +57,8 @@ export class Slicer {
 			console.error("Mesh undefined");
 			return null;
 		}
+
+		layerIx = Math.min(layerIx, this.cachedLayerCount - 1);
 
 		let posAttr = mesh.geometry.getAttribute("position");
 		let isIndexed = false;
@@ -162,7 +166,7 @@ export class Slicer {
 		return null;
 	}
 
-	clip3(tri: THREE.Triangle, plane: THREE.Plane, clippedVtx: THREE.Vector3) : number {
+	private clip3(tri: THREE.Triangle, plane: THREE.Plane, clippedVtx: THREE.Vector3) : number {
 		const clipEps1 = 0.00001;
 		const clipEps2 = 0.01;
 
