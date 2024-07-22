@@ -16,7 +16,7 @@ class App {
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: Slicer;
-	debug = false;
+	debug = true;
 
 	constructor(statusBar : HTMLElement | null) {
 		this.scene = new THREE.Scene();
@@ -69,6 +69,17 @@ class App {
 		this.camera.position.y = 200;
 		this.camera.lookAt(new THREE.Vector3(0,0,0));
 		this.cameraController.update();
+
+		if (this.debug) {
+			const originGeo = new THREE.SphereGeometry(0.7, 8, 8);
+			const basicMat = new THREE.MeshBasicMaterial({
+				depthTest: false,
+				color: 0xff0000,
+			});
+			let originMesh = new THREE.Mesh(originGeo, basicMat);
+			originMesh.renderOrder = 999;
+			this.scene.add(originMesh);
+		}
 
 		// const planeGeo = new THREE.PlaneGeometry(100, 100);
 		// const planeMat = new THREE.MeshStandardMaterial({color: 0x00ff00, transparent: true, opacity: 0.5});
@@ -184,18 +195,20 @@ class App {
 				stlViewerGroup.scale.set(1.05, 1.05, 1.05);
 
 				let bbox = stlGeometry.boundingBox;
-				let groupGroundOffsetZ = 0;
+				let groupGroundOffsetZ = new THREE.Vector3();
 				if (bbox) {
 					let bboxSize = new THREE.Vector3();
 					bbox.getSize(bboxSize);
 
-					groupGroundOffsetZ = bbox.min.z;
+					groupGroundOffsetZ.z = -bbox.min.z;
+					groupGroundOffsetZ.x = -bbox.min.x -bboxSize.x / 2.0;
+					groupGroundOffsetZ.y = -bbox.min.y -bboxSize.y / 2.0;
 					if (this.statusBar)
 						this.statusBar.innerHTML = `${f.name}: ${Math.round(bboxSize.x * 100)/100} x ${Math.round(bboxSize.y * 100) / 100} x ${Math.round(bboxSize.z * 100) / 100}`;
 				}
 
-				slicerInputGroup.position.set(0, 0, -groupGroundOffsetZ);
-				stlViewerGroup.position.set(0, 0, -groupGroundOffsetZ);
+				slicerInputGroup.position.copy(groupGroundOffsetZ);
+				stlViewerGroup.position.copy(groupGroundOffsetZ);
 
 				for (let m of this.sceneGraph) {
 					this.scene.remove(m);
@@ -210,7 +223,7 @@ class App {
 				this.activeSlicer.importObject(slicerInputGroup);
 				this.activeSlicer.stats();
 
-				let slicedGeometry = this.activeSlicer?.slice(1);
+				let slicedGeometry = this.activeSlicer?.slice(15);
 				if (slicedGeometry) {
 					slicedGeometry.computeVertexNormals();
 					let basicMaterial = new THREE.MeshStandardMaterial();

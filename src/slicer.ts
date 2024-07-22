@@ -66,18 +66,18 @@ export class Slicer {
 				let vtx1 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
 					vtx1.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx]);
-					vtx1.add(baseObjectOffset);
 				}
+				vtx1.add(baseObjectOffset);
 				let vtx2 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
 					vtx2.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx + 3]);
-					vtx2.add(baseObjectOffset);
 				}
+				vtx2.add(baseObjectOffset);
 				let vtx3 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
 					vtx3.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx + 6]);
-					vtx3.add(baseObjectOffset);
 				}
+				vtx3.add(baseObjectOffset);
 
 				let tri = new THREE.Triangle(vtx1, vtx2, vtx3);
 
