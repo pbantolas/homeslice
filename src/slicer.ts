@@ -3,16 +3,15 @@ import ClippingContext from 'three/examples/jsm/renderers/common/ClippingContext
 import NodeUniformsGroup from 'three/examples/jsm/renderers/common/nodes/NodeUniformsGroup';
 export class Slicer {
 	layerHeight: number = 0.2;
-	mesh?: THREE.Mesh;
+	object?: THREE.Object3D;
 	bbox: THREE.Box3;
 	constructor() {
-		//
 		this.bbox = new THREE.Box3();
 	}
 
-	importMesh(mesh: THREE.Mesh) {
-		this.mesh = mesh;
-		this.bbox = this.mesh.geometry.boundingBox!;
+	importObject(object: THREE.Object3D) {
+		this.object = object;
+		this.bbox = new THREE.Box3().setFromObject(this.object);
 	}
 
 	stats() {
@@ -29,11 +28,26 @@ export class Slicer {
 	}
 
 	slice(layerIx : number): THREE.BufferGeometry | null {
-		let posAttr = this.mesh?.geometry.getAttribute("position");
+		if (!this.object) return null;
+		// TODO: process all children
+		let mesh : THREE.Mesh | undefined;
+		let baseObjectOffset = this.object.position;
+		for (let c of this.object.children) {
+			if (c instanceof THREE.Mesh) {
+				mesh = c;
+				break;
+			}
+		}
+		if (!mesh) {
+			console.error("Mesh undefined");
+			return null;
+		}
+
+		let posAttr = mesh.geometry.getAttribute("position");
 		let isIndexed = false;
 		if (posAttr) {
 			console.log("Has position attribute.");
-			if (this.mesh?.geometry.index) {
+			if (mesh.geometry.index) {
 				console.log("It is indexed.");
 				isIndexed = true;
 			}
@@ -45,24 +59,24 @@ export class Slicer {
 				triCount = vertexCount / 3;
 			console.log("Num triangles: ", triCount);
 
-			let cutPlaneMin = new THREE.Vector3(0, 0, this.bbox.min.z);
-			let cutPlaneMax = new THREE.Vector3(0, 0, this.bbox.min.z + this.layerHeight);
-
 			let slicePositionBuffer: Array<number> = [];
 
-			let plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), this.layerHeight * layerIx);
+			const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), this.layerHeight * layerIx);
 			for (let triIx = 0; triIx < triCount; triIx++) {
 				let vtx1 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
 					vtx1.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx]);
+					vtx1.add(baseObjectOffset);
 				}
 				let vtx2 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
 					vtx2.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx + 3]);
+					vtx2.add(baseObjectOffset);
 				}
 				let vtx3 = new THREE.Vector3();
 				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
 					vtx3.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx + 6]);
+					vtx3.add(baseObjectOffset);
 				}
 
 				let tri = new THREE.Triangle(vtx1, vtx2, vtx3);
@@ -104,7 +118,7 @@ export class Slicer {
 		if (!(( dist.x >= clipEps2 ) || ( dist.y >= clipEps2 ) || ( dist.z >= clipEps2 )))
 			return 0;
 
-		if ((dist.x >= -clipEps1) && (dist.y >= -clipEps1) && (dist.z >= -clipEps2)) {
+		if ((dist.x >= -clipEps1) && (dist.y >= -clipEps1) && (dist.z >= -clipEps1)) {
 			clippedVtx = v0.clone();
 			return 3;
 		}
@@ -118,17 +132,17 @@ export class Slicer {
 		if (above[1] && !above[0]) {
 			nextIsAbove = above[2];
 			clippedVtx = v0.clone();
-			v0 = v1;
-			v1 = v2;
-			v2 = clippedVtx;
+			v0.copy(v1);
+			v1.copy(v2);
+			v2.copy(clippedVtx);
 			dist = new THREE.Vector3(dist.y, dist.z, dist.x);
 		}
 		else if (above[2] && !above[1]) {
 			nextIsAbove = above[0];
-			clippedVtx = v2;
-			v2 = v1;
-			v1 = v0;
-			v0 = clippedVtx;
+			clippedVtx = v2.clone();
+			v2.copy( v1 );
+			v1.copy( v0 );
+			v0.copy( clippedVtx );
 			dist = new THREE.Vector3(dist.z, dist.x, dist.y);
 		}
 		else {
@@ -144,8 +158,8 @@ export class Slicer {
 		}
 		else {
 			v1.lerpVectors(v0, v1, dist.x / (dist.x - dist.y));
-			v2 = clippedVtx;
-			clippedVtx = v0;
+			v2.copy(clippedVtx);
+			clippedVtx.copy(v0);
 			numOutVertices = 3;
 		}
 

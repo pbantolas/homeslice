@@ -4,20 +4,23 @@ import {STLLoader} from 'three/examples/jsm/loaders/STLLoader';
 import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import {Slicer} from './slicer';
+import WebGPURenderer from 'three/examples/jsm/renderers/webgpu/WebGPURenderer';
+import { instance } from 'three/examples/jsm/nodes/Nodes';
 
 class App {
 	scene: THREE.Scene;
 	camera: THREE.Camera;
-	renderer: THREE.WebGLRenderer;
+	// renderer: THREE.WebGLRenderer;
+	renderer: WebGPURenderer
 	cameraController: OrbitControls;
-	loadedMeshes: THREE.Mesh[];
+	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: Slicer;
 	debug = false;
 
 	constructor(statusBar : HTMLElement | null) {
 		this.scene = new THREE.Scene();
-		this.loadedMeshes = [];
+		this.sceneGraph = [];
 		this.statusBar = statusBar;
 
 		THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
@@ -40,7 +43,8 @@ class App {
 
 		this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-		this.renderer = new THREE.WebGLRenderer();
+		// this.renderer = new THREE.WebGLRenderer();
+		this.renderer = new WebGPURenderer();
 		this.renderer.shadowMap.enabled = true;
 		this.renderer.shadowMap.type = THREE.PCFShadowMap;
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -131,14 +135,14 @@ class App {
 		let bbox = g.boundingBox;
 		let yOffset = 0;
 		if (bbox) {
-			yOffset = bbox.min.y;
+			yOffset = bbox.min.z;
 		}
 
 		return yOffset;
 	}
 
 	animate() {
-		// this.loadedMeshes.forEach((m) => {
+		// this.sceneGraph.forEach((m) => {
 		// 	m.rotation.y += 0.005;
 		// });
 		this.cameraController.update();
@@ -152,8 +156,8 @@ class App {
 				const loader = new STLLoader();
 				let stlGeometry = loader.parse(reader.result);
 				let mat : THREE.Material = new THREE.MeshStandardMaterial({
-					color: 0xaaaaaa,
-					side: THREE.DoubleSide,
+					color: 0x333333,
+					side: THREE.DoubleSide
 				});
 				if (this.debug) {
 					mat = new THREE.MeshBasicMaterial({wireframe: true});
@@ -167,49 +171,73 @@ class App {
 
 				stlGeometry.computeVertexNormals();
 				stlGeometry.computeBoundingBox();
+
+				let slicerInputGroup = new THREE.Group();
+				slicerInputGroup.add(mesh);
+
+				let stlViewerGroup = new THREE.Group();
+				stlViewerGroup.add(new THREE.Mesh(stlGeometry, new THREE.MeshBasicMaterial({
+					opacity: 0.3,
+					transparent: true,
+					color: 0x333333
+				})));
+				stlViewerGroup.scale.set(1.05, 1.05, 1.05);
+
 				let bbox = stlGeometry.boundingBox;
+				let groupGroundOffsetZ = 0;
 				if (bbox) {
 					let bboxSize = new THREE.Vector3();
 					bbox.getSize(bboxSize);
+
+					groupGroundOffsetZ = bbox.min.z;
 					if (this.statusBar)
 						this.statusBar.innerHTML = `${f.name}: ${Math.round(bboxSize.x * 100)/100} x ${Math.round(bboxSize.y * 100) / 100} x ${Math.round(bboxSize.z * 100) / 100}`;
 				}
 
-				mesh.position.y -= this.groundGeometry(stlGeometry);
-				// this.scene.add(mesh);
-				if (this.loadedMeshes.length > 0) {
-					// this.scene.remove(this.loadedMeshes[0]);
-					for (let m of this.loadedMeshes) {
-						this.scene.remove(m);
-					}
-					this.loadedMeshes = [];
-				} else {
-					this.loadedMeshes.push(new THREE.Mesh());
+				slicerInputGroup.position.set(0, 0, -groupGroundOffsetZ);
+				stlViewerGroup.position.set(0, 0, -groupGroundOffsetZ);
+
+				for (let m of this.sceneGraph) {
+					this.scene.remove(m);
 				}
-				this.loadedMeshes[0] = mesh;
+				this.sceneGraph = [];
+				// this.scene.add(slicerInputGroup);
+				// this.sceneGraph.push(slicerInputGroup);
+				this.scene.add(stlViewerGroup);
+				this.sceneGraph.push(stlViewerGroup);
+
 				this.activeSlicer = new Slicer();
-				this.activeSlicer.importMesh(mesh);
+				this.activeSlicer.importObject(slicerInputGroup);
 				this.activeSlicer.stats();
 
-				let layerIx = 0;
-				setInterval(() => {
-					for (let m of this.loadedMeshes) {
-						this.scene.remove(m);
-					}
-					this.loadedMeshes = [];
-					let sliceGeo = this.activeSlicer?.slice(layerIx);
-					sliceGeo?.computeVertexNormals();
-					if (sliceGeo) {
-						let basicMat = new THREE.MeshStandardMaterial({
-							side: THREE.DoubleSide,
-							color: 0xff0000,
-						});
-						let slicedMesh = new THREE.Mesh(sliceGeo, basicMat);
-						this.scene.add(slicedMesh);
-						this.loadedMeshes.push(slicedMesh);
-					}
-					layerIx++;
-				}, 200);
+				let slicedGeometry = this.activeSlicer?.slice(1);
+				if (slicedGeometry) {
+					slicedGeometry.computeVertexNormals();
+					let basicMaterial = new THREE.MeshStandardMaterial();
+					let slicedMesh = new THREE.Mesh(slicedGeometry, basicMaterial);
+					this.scene.add(slicedMesh);
+					this.sceneGraph.push(slicedMesh);
+				}
+
+				// let layerIx = 0;
+				// setInterval(() => {
+				// 	for (let m of this.sceneGraph) {
+				// 		this.scene.remove(m);
+				// 	}
+				// 	this.sceneGraph = [];
+				// 	let sliceGeo = this.activeSlicer?.slice(layerIx);
+				// 	sliceGeo?.computeVertexNormals();
+				// 	if (sliceGeo) {
+				// 		let basicMat = new THREE.MeshStandardMaterial({
+				// 			side: THREE.DoubleSide,
+				// 			color: 0xff0000,
+				// 		});
+				// 		let slicedMesh = new THREE.Mesh(sliceGeo, basicMat);
+				// 		this.scene.add(slicedMesh);
+				// 		this.sceneGraph.push(slicedMesh);
+				// 	}
+				// 	layerIx++;
+				// }, 200);
 			}
 		});
 
