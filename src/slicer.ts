@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import { tri, triNoise3D } from 'three/examples/jsm/nodes/math/TriNoise3D';
+import { cache } from 'three/examples/jsm/nodes/Nodes';
 import Buffer from 'three/examples/jsm/renderers/common/Buffer';
 import ClippingContext from 'three/examples/jsm/renderers/common/ClippingContext';
 import NodeUniformsGroup from 'three/examples/jsm/renderers/common/nodes/NodeUniformsGroup';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils';
 
 enum ClipType {
 	Below,
@@ -14,7 +15,14 @@ interface TriangleClipTask {
 	tri: THREE.Triangle
 }
 
-export class Slicer {
+export interface SlicerBase {
+	importObject(object: THREE.Object3D) : void,
+	stats() : void,
+	slice() : Boolean,
+	getLayer(layerIndex: number) : Float32Array
+}
+
+export class ClippingSlicer implements SlicerBase {
 	layerHeight: number = 0.2;
 	object?: THREE.Object3D;
 	bbox: THREE.Box3;
@@ -42,8 +50,12 @@ export class Slicer {
 		return this.cachedLayerCount;
 	}
 
-	slice(layerIx : number): THREE.BufferGeometry | null {
-		if (!this.object) return null;
+	slice(): Boolean {
+		return true;
+	}
+	// getLayer(layerIx : number): THREE.BufferGeometry | null {
+	getLayer(layerIx : number): Float32Array {
+		if (!this.object) return new Float32Array(0);
 		// TODO: process all children
 		let mesh : THREE.Mesh | undefined;
 		let baseObjectOffset = this.object.position;
@@ -55,7 +67,7 @@ export class Slicer {
 		}
 		if (!mesh) {
 			console.error("Mesh undefined");
-			return null;
+			return new Float32Array(0);
 		}
 
 		layerIx = Math.min(layerIx, this.cachedLayerCount - 1);
@@ -151,19 +163,19 @@ export class Slicer {
 				slicePositionBuffer.push(tri.a.x, tri.a.y, tri.a.z, tri.b.x, tri.b.y, tri.b.z, tri.c.x, tri.c.y, tri.c.z);
 			}
 
-			let sliceBufferGeometry = new THREE.BufferGeometry();
+			// let sliceBufferGeometry = new THREE.BufferGeometry();
 			const sliceVerticesView = new Float32Array(slicePositionBuffer);
-			sliceBufferGeometry.setAttribute('position', new THREE.BufferAttribute(sliceVerticesView, 3));
-			BufferGeometryUtils.mergeVertices(sliceBufferGeometry);
-			sliceBufferGeometry.computeVertexNormals();
-
 			const sliceEndTime = performance.now();
 			console.log(`Slicing took ${sliceEndTime - sliceStartTime} ms`);
 
-			return sliceBufferGeometry;
+			// sliceBufferGeometry.setAttribute('position', new THREE.BufferAttribute(sliceVerticesView, 3));
+			// BufferGeometryUtils.mergeVertices(sliceBufferGeometry);
+			// sliceBufferGeometry.computeVertexNormals();
+			// return sliceBufferGeometry;
+			return sliceVerticesView;
 		}
 
-		return null;
+		return new Float32Array(0);
 	}
 
 	private clip3(tri: THREE.Triangle, plane: THREE.Plane, clippedVtx: THREE.Vector3) : number {
@@ -233,5 +245,448 @@ export class Slicer {
 		tri.c = v2.add(planeOffset);
 		clippedVtx.add(planeOffset);
 		return numOutVertices;
+	}
+}
+
+/* ECC Paper */
+interface ECCVertex {
+	vertex: THREE.Vector3,
+	flag: number
+}
+
+interface ECCEdge {
+	start: ECCVertex,
+	end: ECCVertex
+}
+
+interface Intersection {
+	prev: Intersection | null,
+	next: Intersection | null,
+	intersectionVertex: THREE.Vector3,
+	edges: ECCEdge[]
+}
+
+interface IntersectionLL {
+	first: Intersection | null,
+	last: Intersection | null
+}
+
+interface ContourNode {
+	intersectionList: IntersectionLL,
+	next: ContourNode | null
+}
+
+interface ContourList {
+	head: ContourNode | null,
+	last: ContourNode | null
+}
+
+class ECCTriangle {
+	triangle: THREE.Triangle;
+	vertexMin?: ECCVertex;
+	vertexMed?: ECCVertex;
+	vertexMax?: ECCVertex;
+	edges?: Array<ECCEdge>;
+
+	constructor(t: THREE.Triangle) {
+		this.triangle = t;
+	}
+
+	private orderVertices() {
+		if (this.triangle) {
+			let sortArray = [
+				<ECCVertex>{vertex: this.triangle.a, flag: 0},
+				<ECCVertex>{vertex: this.triangle.b, flag: 1},
+				<ECCVertex>{vertex: this.triangle.c, flag: 2}
+			];
+			let edgeSortArray : Array<ECCEdge> = [
+				{start: sortArray[0], end: sortArray[1]},
+				{start: sortArray[1], end: sortArray[2]},
+				{start: sortArray[2], end: sortArray[0]}
+			];
+
+			sortArray.sort((a: ECCVertex, b: ECCVertex) => {
+				if (a.vertex.z > b.vertex.z)
+					return 1;
+				else if (a.vertex.z < b.vertex.z)
+					return -1;
+				return 0;
+			});
+
+			this.vertexMin = sortArray[0];
+			this.vertexMed = sortArray[1];
+			this.vertexMax = sortArray[2];
+
+			const findEdge = (start: ECCVertex, end: ECCVertex): ECCEdge | undefined => {
+				return edgeSortArray.find(edge =>
+				(edge.start === start && edge.end === end) ||
+				(edge.start === end && edge.end === start)
+				);
+			};
+
+			// s1: min->max
+			// s2: min->med
+			// s3: med->max
+			this.edges = [
+				findEdge(this.vertexMin, this.vertexMax),
+				findEdge(this.vertexMin, this.vertexMed),
+				findEdge(this.vertexMed, this.vertexMax)
+			].filter(edge => edge != undefined) as ECCEdge[];
+			if (this.edges.length < 3) {
+				throw new Error("Edges have not been made");
+			}
+		}
+	}
+
+	searchMinMaxZ() {
+		this.orderVertices();
+	}
+
+	getSlices(layerHeight: number): Array<number> {
+		if (this.vertexMin && this.vertexMed && this.vertexMax) {
+			return [Math.floor(this.vertexMin.vertex.z / layerHeight), Math.floor(this.vertexMed.vertex.z / layerHeight), Math.floor(this.vertexMax.vertex.z / layerHeight)];
+		}
+
+		return [];
+	}
+
+	getFwBwEdges1(): Array<ECCEdge> {
+		if (!(this.vertexMin && this.vertexMed && this.vertexMax && this.edges)) {
+			console.error("No triangle analysis run");
+			return [];
+		}
+
+		if (this.edges[0].start === this.vertexMin) // oriented normal
+		{
+			// group 1, 2
+			return [this.edges[1], this.edges[0]];
+		} else if (this.edges[0].start === this.vertexMax) {
+			return [this.edges[0], this.edges[1]];
+		} else {
+			throw new Error("Incorrect match between s1 edge and vmax, vmin");
+			return [];
+		}
+	}
+
+	getFwBwEdges2(): Array<ECCEdge> {
+		if (!(this.vertexMin && this.vertexMed && this.vertexMax && this.edges)) {
+			console.error("No triangle analysis run");
+			return [];
+		}
+
+		if (this.edges[0].start === this.vertexMin) // oriented normal
+		{
+			// group 1, 2
+			return [this.edges[2], this.edges[0]];
+		} else if (this.edges[0].start === this.vertexMax) {
+			return [this.edges[0], this.edges[2]];
+		} else {
+			throw new Error("Incorrect match between s1 edge and vmax, vmin");
+			return [];
+		}
+	}
+}
+
+export class ECCSlicer implements SlicerBase {
+	private vertexFlags?: Float32Array;
+	private object?: THREE.Object3D;
+	private triangles: Array<ECCTriangle> = [];
+	private sliceArray: ContourList[] = [];
+	layerHeight = 0.2;
+
+	importObject(object: THREE.Object3D) {
+		this.object = object;
+		// TODO: process all children
+		let mesh : THREE.Mesh | null = null;
+		let parentObjectOriginOffset = this.object.position;
+		for (let c of this.object.children) {
+			if (c instanceof THREE.Mesh) {
+				mesh = c;
+				break;
+			}
+		}
+		if (!mesh) {
+			console.error("No mesh found");
+			return;
+		}
+
+		const bboxSize = new THREE.Vector3();
+		(new THREE.Box3()).setFromObject(this.object).getSize(bboxSize);
+		const numSlices = Math.ceil(bboxSize.z / this.layerHeight);
+
+		let posAttr = mesh.geometry.getAttribute("position");
+		if (posAttr) {
+			const vertexCount = posAttr.count;
+			this.vertexFlags = new Float32Array(vertexCount);
+
+			const triCount = vertexCount / 3;
+
+			for (let triIx = 0; triIx < triCount; triIx++) {
+				// this.vertexFlags[triIx * 3 + 0] = 0;
+				// this.vertexFlags[triIx * 3 + 1] = 1;
+				// this.vertexFlags[triIx * 3 + 2] = 2;
+
+				let vtx0 = new THREE.Vector3();
+				vtx0.setComponent(0, posAttr.array[triIx * 9 + 0]);
+				vtx0.setComponent(1, posAttr.array[triIx * 9 + 1]);
+				vtx0.setComponent(2, posAttr.array[triIx * 9 + 2]);
+				vtx0.add(parentObjectOriginOffset);
+
+				let vtx1 = new THREE.Vector3();
+				vtx1.setComponent(0, posAttr.array[triIx * 9 + 3 + 0]);
+				vtx1.setComponent(1, posAttr.array[triIx * 9 + 3 + 1]);
+				vtx1.setComponent(2, posAttr.array[triIx * 9 + 3 + 2]);
+				vtx1.add(parentObjectOriginOffset);
+
+				let vtx2 = new THREE.Vector3();
+				vtx2.setComponent(0, posAttr.array[triIx * 9 + 6 + 0]);
+				vtx2.setComponent(1, posAttr.array[triIx * 9 + 6 + 1]);
+				vtx2.setComponent(2, posAttr.array[triIx * 9 + 6 + 2]);
+				vtx2.add(parentObjectOriginOffset);
+
+				this.triangles.push(new ECCTriangle(new THREE.Triangle(vtx0, vtx1, vtx2)));
+			}
+		}
+	}
+	
+	stats() {
+
+	}
+
+	private linePlaneIntersect(plane: THREE.Plane, lineDirection: THREE.Vector3, linePoint: THREE.Vector3): THREE.Vector3 {
+		const dotLN = lineDirection.dot(plane.normal);
+		let returnedPoint = new THREE.Vector3(0, 0, 0);
+		if (dotLN == 0) {
+			// line parallel to plane
+			return returnedPoint;
+		}
+
+		let utilVec = plane.normal.clone().multiplyScalar(plane.constant);
+		utilVec.sub(linePoint);
+		let dist = utilVec.dot(plane.normal) / dotLN;
+
+		returnedPoint.copy(lineDirection).multiplyScalar(dist).add(linePoint);
+		return returnedPoint;
+	}
+
+	private checkIntersectionFromLeft(left: Intersection | null, right: Intersection | null): Boolean {
+		if (left === null || right === null)
+			return false;
+
+		// compare left edge 2 with right edge 1
+		// if (left.edges[1] === right.edges[0]) return true;
+		let sortedEdgeLeft = [left.edges[1].start.vertex, left.edges[1].end.vertex].sort((v1: THREE.Vector3, v2: THREE.Vector3) => v1.manhattanLength() - v2.manhattanLength());
+		let sortedEdgeRight = [right.edges[0].start.vertex, right.edges[0].end.vertex].sort((v1: THREE.Vector3, v2: THREE.Vector3) => v1.manhattanLength() - v2.manhattanLength());
+
+		return sortedEdgeLeft[0].equals(sortedEdgeRight[0]) && sortedEdgeLeft[1].equals(sortedEdgeRight[1]);
+	}
+
+	private insertIntersectionToCLL(intersection: Intersection, sliceIx: number) {
+		// rule 1: if is.e2 == ill.isf.e1, foward intersection
+		// rule 2: if is.e1 == ill.isl.e2, backward intersection
+		let checkForward = false;
+		let checkBackward = false;
+		let position = 0;
+		let cllIndex = 0;
+
+		let thisSliceContourList = this.sliceArray[sliceIx];
+
+		if (!thisSliceContourList) {
+			let newILL: IntersectionLL = {
+				first: intersection,
+				last: intersection
+			};
+			intersection.prev = intersection;
+			let newCLL: ContourNode = {intersectionList: newILL, next: null};
+			this.sliceArray[sliceIx] = {head: newCLL, last: newCLL};
+		}
+		else {
+			let contourListNode: ContourNode | null = thisSliceContourList.head;
+			let prevCLL: ContourNode | null = null;
+			let cachedCLLAtPosition: ContourNode | null = null;
+			while (contourListNode !== null) {
+				if (!checkBackward && this.checkIntersectionFromLeft(intersection, contourListNode.intersectionList.first)) {
+					checkBackward = true;
+					position = cllIndex;
+					cachedCLLAtPosition = prevCLL;
+
+					// insert IS in front of ILL first
+					intersection.next = contourListNode.intersectionList.first;
+					intersection.prev = contourListNode.intersectionList.last;
+					if (contourListNode.intersectionList.first)
+						contourListNode.intersectionList.first.prev = intersection;
+					contourListNode.intersectionList.first = intersection;
+
+					if (checkForward) {
+						// delete CLL_i, stop
+						if (prevCLL !== null) {
+							prevCLL.next = contourListNode.next;
+						}
+						return;
+					}
+				}
+
+				if (!checkForward && this.checkIntersectionFromLeft(contourListNode.intersectionList.last, intersection)) {
+					if (position == cllIndex) return;
+
+					checkForward = true;
+
+					//insert IS into the back of last
+					intersection.prev = contourListNode.intersectionList.last;
+					intersection.next = null;
+					if (contourListNode.intersectionList.last)
+						contourListNode.intersectionList.last.next = intersection;
+					contourListNode.intersectionList.last = intersection;
+
+					if (checkBackward) {
+						// delete CLL_position
+						if (cachedCLLAtPosition) {
+							cachedCLLAtPosition.next = contourListNode.next;
+						}
+						else if (position == 0) {
+							// first elements
+							if (thisSliceContourList.head) {
+								thisSliceContourList.head = thisSliceContourList.head.next;
+							}
+						}
+						return;
+					}
+				}
+
+				prevCLL = contourListNode;
+				contourListNode = contourListNode.next;
+				cllIndex++;
+			}
+
+			// nothing worked, just insert into new CLL
+			let newILL: IntersectionLL = {
+				first: intersection,
+				last: intersection
+			};
+			intersection.prev = intersection;
+			let newCLL: ContourNode = {intersectionList: newILL, next: null};
+			if (this.sliceArray[sliceIx].last !== null) {
+				this.sliceArray[sliceIx].last.next = newCLL;
+			}
+			this.sliceArray[sliceIx].last = newCLL;
+		}
+	}
+
+	slice(): Boolean {
+		if (this.triangles.length > 0) {
+			//generalise for i triangle
+			for (
+				let triIndex = 0;
+				triIndex < this.triangles.length;
+				++triIndex
+			) {
+				this.triangles[triIndex].searchMinMaxZ();
+
+				let zOrderedTriangleSlices = this.triangles[triIndex].getSlices(
+					this.layerHeight
+				);
+				if (zOrderedTriangleSlices.length == 0) {
+					console.error("Some error occurd");
+					return false;
+				}
+
+				//judge fw/bw edge
+				const fwBwEdges1 = this.triangles[triIndex].getFwBwEdges1();
+
+				// get fw edge line def
+				const fwLineDirection = new THREE.Vector3()
+					.subVectors(
+						fwBwEdges1[0].end.vertex,
+						fwBwEdges1[0].start.vertex
+					)
+					.normalize();
+				let slicePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+				for (
+					let j = zOrderedTriangleSlices[0];
+					j < zOrderedTriangleSlices[1];
+					j++
+				) {
+					slicePlane.constant = j * this.layerHeight;
+
+					let intersectionPoint = this.linePlaneIntersect(
+						slicePlane,
+						fwLineDirection,
+						fwBwEdges1[0].start.vertex
+					);
+					let intersectionEntry: Intersection = {
+						prev: null,
+						next: null,
+						edges: fwBwEdges1,
+						intersectionVertex: intersectionPoint,
+					};
+
+					// TODO insert to ILL/CLL/SA
+					this.insertIntersectionToCLL(intersectionEntry, j);
+				}
+
+				// judge fw/bw edge for upper part
+				const fwBwEdges2 = this.triangles[triIndex].getFwBwEdges2();
+
+				const fwLine2Direction = fwBwEdges2[0].end.vertex
+					.clone()
+					.sub(fwBwEdges2[0].start.vertex)
+					.normalize();
+				for (
+					let k = zOrderedTriangleSlices[1];
+					k < zOrderedTriangleSlices[2];
+					k++
+				) {
+					slicePlane.constant = k * this.layerHeight;
+
+					let intersectionPoint = this.linePlaneIntersect(
+						slicePlane,
+						fwLine2Direction,
+						fwBwEdges2[0].start.vertex
+					);
+					let intersectionEntry: Intersection = {
+						prev: null,
+						next: null,
+						edges: fwBwEdges2,
+						intersectionVertex: intersectionPoint,
+					};
+
+					// TODO insert to ILL/CLL/SA
+					this.insertIntersectionToCLL(intersectionEntry, k);
+				}
+			}
+		}
+		return true;
+	}
+
+	getLayer(layerIndex: number): Float32Array {
+		// print contour list for slice x
+		let sliceReport = this.sliceArray[Math.min(layerIndex, this.sliceArray.length - 1)];
+		let sliceBuffer = [];
+		if (sliceReport.head) {
+			let sliceNode: ContourNode | null = sliceReport.head;
+			let sliceNumber = 0;
+			while (sliceNode !== null) {
+				// console.log(`CLL ${sliceNumber}`);
+				let illNode = sliceNode.intersectionList.first;
+				let illNumber = 0;
+				while (illNode !== null) {
+					// console.log(`ILL ${illNumber}`);
+					
+					let v = illNode.intersectionVertex;
+					sliceBuffer.push(v);
+					illNode = illNode.next;
+					illNumber++;
+				}
+
+				sliceNumber++;
+				sliceNode = sliceNode.next;
+			}
+		}
+		let posArray = [];
+		for (let v3 of sliceBuffer) {
+			posArray.push(v3.x, v3.y, v3.z);
+		}
+		let posArrayView = new Float32Array(posArray);
+		return posArrayView;
 	}
 }
