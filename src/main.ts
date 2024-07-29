@@ -3,9 +3,10 @@ import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader';
 import {STLLoader} from 'three/examples/jsm/loaders/STLLoader';
 import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
-import {Slicer} from './slicer';
+import {ClippingSlicer, ECCSlicer, SlicerBase} from './slicer';
 import WebGPURenderer from 'three/examples/jsm/renderers/webgpu/WebGPURenderer';
 import { instance } from 'three/examples/jsm/nodes/Nodes';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils';
 
 class App {
 	scene: THREE.Scene;
@@ -15,8 +16,8 @@ class App {
 	cameraController: OrbitControls;
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
-	activeSlicer?: Slicer;
-	// debug = true;
+	activeSlicer?: SlicerBase;
+	debug = false;
 
 	constructor(statusBar : HTMLElement | null) {
 		this.scene = new THREE.Scene();
@@ -100,7 +101,7 @@ class App {
 					}
 				}
 			});
-			this.scene.add(gltf.scene);
+			// this.scene.add(gltf.scene);
 		}, undefined, (err) => {
 			console.error(err);
 		});
@@ -223,25 +224,41 @@ class App {
 				this.scene.add(stlViewerGroup);
 				this.sceneGraph.push(stlViewerGroup);
 
-				this.activeSlicer = new Slicer();
+				// this.activeSlicer = new ClippingSlicer();
+				this.activeSlicer = new ECCSlicer();
 
 				if (this.activeSlicer) {
 					this.activeSlicer.importObject(slicerInputGroup);
 					this.activeSlicer.stats();
+					this.activeSlicer.slice();
 
-					let slicedGeometry = this.activeSlicer.slice(0);
-					if (slicedGeometry) {
-						let basicMaterial = new THREE.MeshStandardMaterial({
-							side: THREE.DoubleSide,
-							color: 0xe06100,
-						});
-						let slicedMesh = new THREE.Mesh(
-							slicedGeometry,
-							basicMaterial
-						);
-						this.scene.add(slicedMesh);
-						this.sceneGraph.push(slicedMesh);
+					let slicedGeometry = this.activeSlicer.getLayer(80);
+					let points = [];
+					for (let triple = 0; triple < slicedGeometry.length/3; triple++) {
+						points.push(new THREE.Vector3(slicedGeometry[triple * 3 + 0], slicedGeometry[triple * 3 + 1], slicedGeometry[triple * 3 + 2]));
 					}
+					const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+					const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({
+						color: 0x00ff00
+					}));
+					this.scene.add(line);
+					this.sceneGraph.push(line);
+					// if (slicedGeometry.length > 0) {
+					// 	const sliceBufferGeo = new THREE.BufferGeometry();
+					// 	sliceBufferGeo.setAttribute('position', new THREE.BufferAttribute(slicedGeometry, 3));
+					// 	// BufferGeometryUtils.mergeVertices(sliceBufferGeo);
+					// 	sliceBufferGeo.computeVertexNormals();
+					// 	let basicMaterial = new THREE.MeshStandardMaterial({
+					// 		side: THREE.DoubleSide,
+					// 		color: 0xe06100,
+					// 	});
+					// 	let slicedMesh = new THREE.Mesh(
+					// 		sliceBufferGeo,
+					// 		basicMaterial
+					// 	);
+					// 	this.scene.add(slicedMesh);
+					// 	this.sceneGraph.push(slicedMesh);
+					// }
 				}
 			}
 		});
