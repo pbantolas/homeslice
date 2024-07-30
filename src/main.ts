@@ -101,7 +101,7 @@ class App {
 					}
 				}
 			});
-			// this.scene.add(gltf.scene);
+			this.scene.add(gltf.scene);
 		}, undefined, (err) => {
 			console.error(err);
 		});
@@ -193,11 +193,12 @@ class App {
 
 				let stlViewerGroup = new THREE.Group();
 				stlViewerGroup.add(new THREE.Mesh(stlGeometry, new THREE.MeshBasicMaterial({
-					opacity: 0.3,
+					wireframe: true,
+					opacity: 0.2,
 					transparent: true,
-					color: 0x333333
+					color: 0xffc8dd
 				})));
-				stlViewerGroup.scale.set(1.05, 1.05, 1.05);
+				// stlViewerGroup.scale.set(1.05, 1.05, 1.05);
 
 				let bbox = stlGeometry.boundingBox;
 				let groupGroundOffsetZ = new THREE.Vector3();
@@ -232,13 +233,14 @@ class App {
 					this.activeSlicer.stats();
 					this.activeSlicer.slice();
 
-					let slicedGeometry = this.activeSlicer.getLayer(80);
+					let slicedGeometry = this.activeSlicer.getLayer(50);
 					let points = [];
 					for (let triple = 0; triple < slicedGeometry.length/3; triple++) {
 						points.push(new THREE.Vector3(slicedGeometry[triple * 3 + 0], slicedGeometry[triple * 3 + 1], slicedGeometry[triple * 3 + 2]));
 					}
 					const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
 					const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({
+						linewidth: 4,
 						color: 0x00ff00
 					}));
 					this.scene.add(line);
