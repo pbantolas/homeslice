@@ -43,6 +43,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build
+          path: homeslice-build
 
       - name: Checkout Hugo website repo
         uses: actions/checkout@v4
@@ -56,7 +57,7 @@ jobs:
         run: |
           rm -rf static/apps/homeslice
           mkdir -p static/apps/homeslice
-          cp -r dist/* static/apps/homeslice/
+          cp -r homeslice-build/* static/apps/homeslice/
 
       - name: Commit and push changes
         run: |
