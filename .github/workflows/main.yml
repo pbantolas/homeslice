@@ -44,6 +44,11 @@ jobs:
         with:
           name: build
 
+      - name: Set up deploy key
+        run: |
+          eval `ssh-agent -s`
+          ssh-add - <<< '${{ secrets.DEPLOY_SSH_KEY }}'
+
       - name: Checkout Hugo website repo
         uses: actions/checkout@v4
         with:
