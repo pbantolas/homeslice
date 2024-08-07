@@ -44,10 +44,10 @@ jobs:
         with:
           name: build
 
-      - name: Set up deploy key
-        run: |
-          eval `ssh-agent -s`
-          ssh-add - <<< '${{ secrets.DEPLOY_SSH_KEY }}'
+      - name: Configure git
+        env:
+          TOKEN: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: git config --global url."https://${TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
 
       - name: Checkout Hugo website repo
         uses: actions/checkout@v4
