@@ -29,3 +29,38 @@ jobs:
         with:
           name: build
           path: dist
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+
+      - name: Checkout Hugo website repo
+        uses: actions/checkout@v4
+        with:
+          repository: pbantolas/bantolas.dev
+          ref: development
+          path: website
+
+      - name: Copy app build to Hugo
+        run: |
+          rm -rf static/apps/homeslice
+          mkdir -p static/apps/homeslice
+          cp -r dist/* static/apps/homeslice/
+
+      - name: Commit and push changes
+        run: |
+          cd website
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m "Deploy updated homeslice app"
+          git push
