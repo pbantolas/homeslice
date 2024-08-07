@@ -44,15 +44,11 @@ jobs:
         with:
           name: build
 
-      - name: Configure git
-        env:
-          TOKEN: ${{ secrets.DEPLOY_SSH_KEY }}
-        run: git config --global url."https://${TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
-
       - name: Checkout Hugo website repo
         uses: actions/checkout@v4
         with:
           repository: pbantolas/bantolas.dev
+          token: ${{ secrets.DEPLOY_PAT_KEY }}
           ref: development
           path: website
 
