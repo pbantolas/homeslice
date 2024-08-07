@@ -55,9 +55,9 @@ jobs:
 
       - name: Copy app build to Hugo
         run: |
-          rm -rf static/apps/homeslice
-          mkdir -p static/apps/homeslice
-          cp -r homeslice-build/* static/apps/homeslice/
+          rm -rf website/static/apps/homeslice
+          mkdir -p website/static/apps/homeslice
+          cp -r homeslice-build/* website/static/apps/homeslice/
 
       - name: Commit and push changes
         run: |
