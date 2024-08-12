@@ -50,7 +50,7 @@ jobs:
         with:
           repository: pbantolas/bantolas.dev
           token: ${{ secrets.DEPLOY_PAT_KEY }}
-          ref: development
+          ref: main
           path: website
 
       - name: Copy app build to Hugo
