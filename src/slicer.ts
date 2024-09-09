@@ -494,15 +494,14 @@ export class ECCSlicer implements SlicerBase {
 			}
 		}
 		if (!mesh) {
-			console.error("No mesh found");
-			return;
+			throw new Error("No mesh found");
 		}
 
 		const bboxSize = new THREE.Vector3();
 		new THREE.Box3().setFromObject(this.object).getSize(bboxSize);
 		const numSlices = Math.ceil(bboxSize.z / this.layerHeight);
 
-		let posAttr = mesh.geometry.getAttribute("position");
+		const posAttr = mesh.geometry.getAttribute("position");
 		if (posAttr) {
 			const vertexCount = posAttr.count;
 			this.vertexFlags = new Float32Array(vertexCount);
@@ -574,14 +573,14 @@ export class ECCSlicer implements SlicerBase {
 
 		// compare left edge 2 with right edge 1
 		// if (left.edges[1] === right.edges[0]) return true;
-		let sortedEdgeLeft = [
+		const sortedEdgeLeft = [
 			left.edges[1].start.vertex,
 			left.edges[1].end.vertex,
 		].sort(
 			(v1: THREE.Vector3, v2: THREE.Vector3) =>
 				v1.manhattanLength() - v2.manhattanLength()
 		);
-		let sortedEdgeRight = [
+		const sortedEdgeRight = [
 			right.edges[0].start.vertex,
 			right.edges[0].end.vertex,
 		].sort(
@@ -589,8 +588,11 @@ export class ECCSlicer implements SlicerBase {
 				v1.manhattanLength() - v2.manhattanLength()
 		);
 
-		const eps = 0.01;
-		let compareVertexLoose = (v: THREE.Vector3, vother: THREE.Vector3) => {
+		const eps = 0.0001;
+		const compareVertexLoose = (
+			v: THREE.Vector3,
+			vother: THREE.Vector3
+		) => {
 			return (
 				Math.abs(v.x - vother.x) < eps &&
 				Math.abs(v.y - vother.y) < eps &&
@@ -646,29 +648,16 @@ export class ECCSlicer implements SlicerBase {
 		// rule 2: if is.e1 == ill.isl.e2, backward intersection
 		let checkForward = false;
 		let checkBackward = false;
-		// let position = 0;
-		// let cllIndex = 0;
 
-		// let thisSliceContourList = this.sliceArray[sliceIx];
-		const thisSliceContourListNew = this.sliceArrayLL[sliceIx];
+		const thisSliceContourList = this.sliceArrayLL[sliceIx];
 
 		const eccInterData: ECCIntersection = {
 			intersectionPoint: intersection.intersectionVertex,
 			edges: intersection.edges,
 		};
 
-		// if (!thisSliceContourList) {
-		// 	let newILL: IntersectionLL = {
-		// 		first: intersection,
-		// 		last: intersection,
-		// 	};
-		// 	intersection.prev = intersection;
-		// 	let newCLL: ContourNode = { intersectionList: newILL, next: null };
-		// 	this.sliceArray[sliceIx] = { head: newCLL, last: newCLL };
-		// }
-
 		let insertionSuccess = false;
-		if (!thisSliceContourListNew) {
+		if (!thisSliceContourList) {
 			const newInnerLL = new LinkedList<ECCIntersection>();
 			const outerLL = new LinkedList<ILLType>();
 			newInnerLL.insertAtEnd(eccInterData);
@@ -677,14 +666,10 @@ export class ECCSlicer implements SlicerBase {
 
 			insertionSuccess = true;
 		} else {
-			// let contourListNode: ContourNode | null = thisSliceContourList.head;
-			// let prevCLL: ContourNode | null = null;
-			// let cachedCLLAtPosition: ContourNode | null = null;
-
 			let terminateInsertion = false;
 			let cachedBackwardInsertionPosition: ListNode<ILLType> | null =
 				null;
-			thisSliceContourListNew.traverse(
+			thisSliceContourList.traverse(
 				(item: ILLType, node: ListNode<ILLType>) => {
 					let backwardInsertionInThisTraversal = false;
 					if (
@@ -706,7 +691,7 @@ export class ECCSlicer implements SlicerBase {
 
 						if (checkForward) {
 							// delete CLL_i
-							thisSliceContourListNew.deleteNode(node);
+							thisSliceContourList.deleteNode(node);
 							terminateInsertion = true;
 							return false;
 						}
@@ -734,7 +719,7 @@ export class ECCSlicer implements SlicerBase {
 								throw new Error(
 									"Didn't cache previous insertion position"
 								);
-							thisSliceContourListNew.deleteNode(
+							thisSliceContourList.deleteNode(
 								cachedBackwardInsertionPosition
 							);
 							terminateInsertion = true;
@@ -745,77 +730,6 @@ export class ECCSlicer implements SlicerBase {
 				}
 			);
 			if (terminateInsertion) return;
-
-			// while (contourListNode !== null) {
-			// 	if (!checkBackward && this.checkIntersectionFromLeft(intersection, contourListNode.intersectionList.first)) {
-			// 		checkBackward = true;
-			// 		position = cllIndex;
-			// 		cachedCLLAtPosition = prevCLL;
-
-			// 		// insert IS in front of first item in ILL
-			// 		intersection.next = contourListNode.intersectionList.first;
-			// 		intersection.prev = contourListNode.intersectionList.last;
-			// 		if (contourListNode.intersectionList.first)
-			// 			contourListNode.intersectionList.first.prev = intersection;
-			// 		contourListNode.intersectionList.first = intersection;
-
-			// 		if (checkForward) {
-			// 			// delete CLL_i, stop
-			// 			if (prevCLL !== null) {
-			// 				prevCLL.next = contourListNode.next;
-			// 			} else {
-			// 				if (thisSliceContourList.head) {
-			// 					thisSliceContourList.head = thisSliceContourList.head.next;
-			// 				}
-			// 			}
-			// 			return;
-			// 		}
-			// 	}
-
-			// 	if (!checkForward && this.checkIntersectionFromLeft(contourListNode.intersectionList.last, intersection)) {
-			// 		if (position == cllIndex) return;
-
-			// 		checkForward = true;
-
-			// 		//insert IS into the back of last
-			// 		intersection.prev = contourListNode.intersectionList.last;
-			// 		intersection.next = null;
-			// 		if (contourListNode.intersectionList.last)
-			// 			contourListNode.intersectionList.last.next = intersection;
-			// 		contourListNode.intersectionList.last = intersection;
-
-			// 		if (checkBackward) {
-			// 			// delete CLL_position
-			// 			if (cachedCLLAtPosition) {
-			// 				cachedCLLAtPosition.next = contourListNode.next;
-			// 			}
-			// 			else if (position == 0) {
-			// 				// first elements
-			// 				if (thisSliceContourList.head) {
-			// 					thisSliceContourList.head = thisSliceContourList.head.next;
-			// 				}
-			// 			}
-			// 			return;
-			// 		}
-			// 	}
-
-			// 	prevCLL = contourListNode;
-			// 	contourListNode = contourListNode.next;
-			// 	cllIndex++;
-			// }
-
-			// nothing worked, just insert into new CLL
-			// let newILL: IntersectionLL = {
-			// 	first: intersection,
-			// 	last: intersection
-			// };
-			// intersection.prev = intersection;
-			// let newCLL: ContourNode = {intersectionList: newILL, next: null};
-			// let lastOfSlice = this.sliceArray[sliceIx].last;
-			// if (lastOfSlice !== null) {
-			// 	lastOfSlice.next = newCLL;
-			// }
-			// this.sliceArray[sliceIx].last = newCLL;
 
 			if (!insertionSuccess) {
 				const innerILL = new LinkedList<ECCIntersection>();
@@ -914,12 +828,14 @@ export class ECCSlicer implements SlicerBase {
 	}
 
 	getLayer(layerIndex: number): Float32Array {
+		if (this.sliceArrayLL.length == 0) return new Float32Array(0);
 		// print contour list for slice x
 		const sliceReport =
 			this.sliceArrayLL[
 				Math.min(layerIndex, this.sliceArrayLL.length - 1)
 			];
 		const sliceBuffer: Array<THREE.Vector3> = [];
+		let totalIntersections = 0;
 		sliceReport.traverse((cll: ILLType, _cllNode: ListNode<ILLType>) => {
 			console.log("Traversing ILL, count: ", cll.getSize());
 			cll.traverse(
@@ -929,6 +845,7 @@ export class ECCSlicer implements SlicerBase {
 				) => {
 					let v = intersection.intersectionPoint;
 					sliceBuffer.push(v);
+					totalIntersections++;
 					return true;
 				}
 			);
@@ -936,6 +853,7 @@ export class ECCSlicer implements SlicerBase {
 		});
 
 		console.log("Top level CLL count: ", sliceReport.getSize());
+		console.log(`Total intersections retrieved: ${totalIntersections}`);
 		const posArray = [];
 		for (const v3 of sliceBuffer) {
 			posArray.push(v3.x, v3.y, v3.z);
