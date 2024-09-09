@@ -1,25 +1,25 @@
-import * as THREE from 'three';
-import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader';
-import {STLLoader} from 'three/examples/jsm/loaders/STLLoader';
-import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader';
-import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
-import {ClippingSlicer, ECCSlicer, SlicerBase} from './slicer';
-import WebGPURenderer from 'three/examples/jsm/renderers/webgpu/WebGPURenderer';
-import { instance } from 'three/examples/jsm/nodes/Nodes';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils';
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { ClippingSlicer, ECCSlicer, SlicerBase } from "./slicer";
+import WebGPURenderer from "three/examples/jsm/renderers/webgpu/WebGPURenderer";
+import { instance } from "three/examples/jsm/nodes/Nodes";
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
 
 class App {
 	scene: THREE.Scene;
 	camera: THREE.Camera;
 	// renderer: THREE.WebGLRenderer;
-	renderer: WebGPURenderer
+	renderer: WebGPURenderer;
 	cameraController: OrbitControls;
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: SlicerBase;
 	debug = false;
 
-	constructor(statusBar : HTMLElement | null) {
+	constructor(statusBar: HTMLElement | null) {
 		this.scene = new THREE.Scene();
 		this.sceneGraph = [];
 		this.statusBar = statusBar;
@@ -31,18 +31,23 @@ class App {
 		}
 
 		new RGBELoader()
-			.setPath( 'assets/')
-			.load('machine_shop_01_1k.hdr', (texture) => {
+			.setPath("assets/")
+			.load("machine_shop_01_1k.hdr", (texture) => {
 				texture.mapping = THREE.EquirectangularReflectionMapping;
 				this.scene.environment = texture;
-				this.scene.environmentRotation.set(Math.PI/2, 0, Math.PI/2);
+				this.scene.environmentRotation.set(Math.PI / 2, 0, Math.PI / 2);
 				this.scene.environmentIntensity = 0.7;
 				this.scene.background = new THREE.Color("rgb(20, 20, 20)");
 				// this.scene.background = texture;
 				// this.scene.backgroundRotation = this.scene.environmentRotation;
 			});
 
-		this.camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000);
+		this.camera = new THREE.PerspectiveCamera(
+			75,
+			window.innerWidth / window.innerHeight,
+			0.1,
+			1000
+		);
 
 		// this.renderer = new THREE.WebGLRenderer();
 		this.renderer = new WebGPURenderer();
@@ -51,7 +56,10 @@ class App {
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
 		document.body.appendChild(this.renderer.domElement);
 
-		this.cameraController = new OrbitControls(this.camera, this.renderer.domElement);
+		this.cameraController = new OrbitControls(
+			this.camera,
+			this.renderer.domElement
+		);
 
 		const light = new THREE.DirectionalLight(0xffffff, 1.0);
 		light.position.set(1, 0, 1);
@@ -68,7 +76,7 @@ class App {
 
 		this.camera.position.z = 80;
 		this.camera.position.y = 200;
-		this.camera.lookAt(new THREE.Vector3(0,0,0));
+		this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 		this.cameraController.update();
 
 		if (this.debug) {
@@ -92,30 +100,36 @@ class App {
 		// this.scene.add(gridHelper)
 
 		const gltfLoader = new GLTFLoader();
-		gltfLoader.load('assets/pei_plate_2.glb', (gltf) => {
-			gltf.scene.scale.set(100, 100, 100);
-			gltf.scene.traverse((node) => {
-				if (node.isObject3D) { node.receiveShadow = true;
-					if (node instanceof THREE.Mesh) {
-						node.material.color.setHex(0x26262A);
+		gltfLoader.load(
+			"assets/pei_plate_2.glb",
+			(gltf) => {
+				gltf.scene.scale.set(100, 100, 100);
+				gltf.scene.traverse((node) => {
+					if (node.isObject3D) {
+						node.receiveShadow = true;
+						if (node instanceof THREE.Mesh) {
+							node.material.color.setHex(0x26262a);
+						}
 					}
-				}
-			});
-			this.scene.add(gltf.scene);
-		}, undefined, (err) => {
-			console.error(err);
-		});
+				});
+				this.scene.add(gltf.scene);
+			},
+			undefined,
+			(err) => {
+				console.error(err);
+			}
+		);
 
 		this.renderer.setAnimationLoop(() => {
 			this.animate();
 		});
 	}
 
-	addDragHandling(el : HTMLElement) {
-		window.addEventListener('dragover', (ev) => {
+	addDragHandling(el: HTMLElement) {
+		window.addEventListener("dragover", (ev) => {
 			ev.preventDefault();
 		});
-		el.addEventListener('drop', (ev) => {
+		el.addEventListener("drop", (ev) => {
 			ev.preventDefault();
 			const files = ev.dataTransfer!.files;
 			const allowedExtensions = /(\.stl)$/i;
@@ -125,26 +139,26 @@ class App {
 			}
 			el.classList.remove("active");
 		});
-		window.addEventListener('dragenter', (ev) => {
+		window.addEventListener("dragenter", (ev) => {
 			ev.preventDefault();
-			el.classList.add('active');
+			el.classList.add("active");
 		});
-		el.addEventListener('dragleave', (ev) => {
+		el.addEventListener("dragleave", (ev) => {
 			ev.preventDefault();
 			el.classList.remove("active");
 		});
 	}
 
-	addScrollHandling(el : HTMLElement) {
-		document.addEventListener('wheel', (evt) => {
+	addScrollHandling(el: HTMLElement) {
+		document.addEventListener("wheel", (evt) => {
 			evt.preventDefault();
-			const {deltaX, deltaY} = evt;
+			const { deltaX, deltaY } = evt;
 
 			this.camera.translateZ(-deltaY * 0.1);
 		});
 	}
 
-	groundGeometry(g: THREE.BufferGeometry) : number {
+	groundGeometry(g: THREE.BufferGeometry): number {
 		if (!g.boundingBox) {
 			g.computeBoundingBox();
 		}
@@ -165,18 +179,18 @@ class App {
 		this.renderer.render(this.scene, this.camera);
 	}
 
-	loadFile(f : File) {
+	loadFile(f: File) {
 		const reader = new FileReader();
-		reader.addEventListener('load', (ev) => {
+		reader.addEventListener("load", (ev) => {
 			if (reader.readyState == FileReader.DONE && reader.result != null) {
 				const loader = new STLLoader();
 				let stlGeometry = loader.parse(reader.result);
-				let mat : THREE.Material = new THREE.MeshStandardMaterial({
+				let mat: THREE.Material = new THREE.MeshStandardMaterial({
 					color: 0x333333,
-					side: THREE.DoubleSide
+					side: THREE.DoubleSide,
 				});
 				if (this.debug) {
-					mat = new THREE.MeshBasicMaterial({wireframe: true});
+					mat = new THREE.MeshBasicMaterial({ wireframe: true });
 				}
 
 				// stlGeometry.center();
@@ -192,12 +206,17 @@ class App {
 				slicerInputGroup.add(mesh);
 
 				let stlViewerGroup = new THREE.Group();
-				stlViewerGroup.add(new THREE.Mesh(stlGeometry, new THREE.MeshBasicMaterial({
-					wireframe: true,
-					opacity: 0.2,
-					transparent: true,
-					color: 0xffc8dd
-				})));
+				stlViewerGroup.add(
+					new THREE.Mesh(
+						stlGeometry,
+						new THREE.MeshBasicMaterial({
+							wireframe: true,
+							opacity: 0.2,
+							transparent: true,
+							color: 0xffc8dd,
+						})
+					)
+				);
 				// stlViewerGroup.scale.set(1.05, 1.05, 1.05);
 
 				let bbox = stlGeometry.boundingBox;
@@ -207,10 +226,14 @@ class App {
 					bbox.getSize(bboxSize);
 
 					groupGroundOffsetZ.z = -bbox.min.z;
-					groupGroundOffsetZ.x = -bbox.min.x -bboxSize.x / 2.0;
-					groupGroundOffsetZ.y = -bbox.min.y -bboxSize.y / 2.0;
+					groupGroundOffsetZ.x = -bbox.min.x - bboxSize.x / 2.0;
+					groupGroundOffsetZ.y = -bbox.min.y - bboxSize.y / 2.0;
 					if (this.statusBar)
-						this.statusBar.innerHTML = `${f.name}: ${Math.round(bboxSize.x * 100)/100} x ${Math.round(bboxSize.y * 100) / 100} x ${Math.round(bboxSize.z * 100) / 100}`;
+						this.statusBar.innerHTML = `${f.name}: ${
+							Math.round(bboxSize.x * 100) / 100
+						} x ${Math.round(bboxSize.y * 100) / 100} x ${
+							Math.round(bboxSize.z * 100) / 100
+						}`;
 				}
 
 				slicerInputGroup.position.copy(groupGroundOffsetZ);
@@ -233,16 +256,31 @@ class App {
 					this.activeSlicer.stats();
 					this.activeSlicer.slice();
 
-					let slicedGeometry = this.activeSlicer.getLayer(50);
+					let slicedGeometry = this.activeSlicer.getLayer(10);
 					let points = [];
-					for (let triple = 0; triple < slicedGeometry.length/3; triple++) {
-						points.push(new THREE.Vector3(slicedGeometry[triple * 3 + 0], slicedGeometry[triple * 3 + 1], slicedGeometry[triple * 3 + 2]));
+					for (
+						let triple = 0;
+						triple < slicedGeometry.length / 3;
+						triple++
+					) {
+						points.push(
+							new THREE.Vector3(
+								slicedGeometry[triple * 3 + 0],
+								slicedGeometry[triple * 3 + 1],
+								slicedGeometry[triple * 3 + 2]
+							)
+						);
 					}
-					const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-					const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({
-						linewidth: 4,
-						color: 0x00ff00
-					}));
+					const lineGeo = new THREE.BufferGeometry().setFromPoints(
+						points
+					);
+					const line = new THREE.Line(
+						lineGeo,
+						new THREE.LineBasicMaterial({
+							linewidth: 4,
+							color: 0x00ff00,
+						})
+					);
 					this.scene.add(line);
 					this.sceneGraph.push(line);
 					// if (slicedGeometry.length > 0) {
@@ -269,6 +307,6 @@ class App {
 	}
 }
 
-const app : App = new App(document.querySelector('#status-bar'));
+const app: App = new App(document.querySelector("#status-bar"));
 //app.addScrollHandling(document.querySelector('canvas')!);
-app.addDragHandling(document.querySelector('#dropzone')!);
+app.addDragHandling(document.querySelector("#dropzone")!);

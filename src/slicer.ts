@@ -349,6 +349,9 @@ class ECCTriangle {
 	vertexMax?: ECCVertex;
 	edges?: Array<ECCEdge>;
 
+	private cachedFwBwEdges1?: Array<ECCEdge>;
+	private cachedFwBwEdges2?: Array<ECCEdge>;
+
 	constructor(t: THREE.Triangle) {
 		this.triangle = t;
 	}
@@ -425,16 +428,21 @@ class ECCTriangle {
 			return [];
 		}
 
+		if (this.cachedFwBwEdges1) return this.cachedFwBwEdges1;
+
+		let result: Array<ECCEdge>;
 		if (this.edges[0].start === this.vertexMin) {
 			// oriented normal
 			// group 1, 2
-			return [this.edges[1], this.edges[0]];
+			result = [this.edges[1], this.edges[0]];
 		} else if (this.edges[0].start === this.vertexMax) {
-			return [this.edges[0], this.edges[1]];
+			result = [this.edges[0], this.edges[1]];
 		} else {
 			throw new Error("Incorrect match between s1 edge and vmax, vmin");
-			return [];
+			result = [];
 		}
+		this.cachedFwBwEdges1 = result;
+		return result;
 	}
 
 	getFwBwEdges2(): Array<ECCEdge> {
@@ -445,16 +453,21 @@ class ECCTriangle {
 			return [];
 		}
 
+		if (this.cachedFwBwEdges2) return this.cachedFwBwEdges2;
+
+		let result: Array<ECCEdge>;
 		if (this.edges[0].start === this.vertexMin) {
 			// oriented normal
 			// group 1, 2
-			return [this.edges[2], this.edges[0]];
+			result = [this.edges[2], this.edges[0]];
 		} else if (this.edges[0].start === this.vertexMax) {
-			return [this.edges[0], this.edges[2]];
+			result = [this.edges[0], this.edges[2]];
 		} else {
 			throw new Error("Incorrect match between s1 edge and vmax, vmin");
-			return [];
+			result = [];
 		}
+		this.cachedFwBwEdges2 = result;
+		return result;
 	}
 }
 
@@ -534,15 +547,20 @@ export class ECCSlicer implements SlicerBase {
 		linePoint: THREE.Vector3
 	): THREE.Vector3 {
 		const dotLN = lineDirection.dot(plane.normal);
-		let returnedPoint = new THREE.Vector3(0, 0, 0);
+		const planePoint = plane.normal.clone().multiplyScalar(plane.constant);
+		const p0SubL0 = planePoint.clone().sub(linePoint);
+		let returnedPoint = planePoint.clone();
 		if (dotLN == 0) {
-			// line parallel to plane
+			if (p0SubL0.dot(plane.normal) != 0)
+				throw new Error(
+					"Line not contained in plane that should contain it."
+				);
+
+			// line contained in plane
 			return returnedPoint;
 		}
 
-		let utilVec = plane.normal.clone().multiplyScalar(plane.constant);
-		utilVec.sub(linePoint);
-		let dist = utilVec.dot(plane.normal) / dotLN;
+		let dist = p0SubL0.dot(plane.normal) / dotLN;
 
 		returnedPoint.copy(lineDirection).multiplyScalar(dist).add(linePoint);
 		return returnedPoint;
@@ -573,10 +591,17 @@ export class ECCSlicer implements SlicerBase {
 
 		const eps = 0.01;
 		let compareVertexLoose = (v: THREE.Vector3, vother: THREE.Vector3) => {
-			return (Math.abs(v.x - vother.x) < eps) && (Math.abs(v.y - vother.y) < eps) && (Math.abs(v.z - vother.z) < eps);
+			return (
+				Math.abs(v.x - vother.x) < eps &&
+				Math.abs(v.y - vother.y) < eps &&
+				Math.abs(v.z - vother.z) < eps
+			);
 		};
 
-		return compareVertexLoose(sortedEdgeLeft[0], sortedEdgeRight[0]) && compareVertexLoose(sortedEdgeLeft[1], sortedEdgeRight[1]);
+		return (
+			compareVertexLoose(sortedEdgeLeft[0], sortedEdgeRight[0]) &&
+			compareVertexLoose(sortedEdgeLeft[1], sortedEdgeRight[1])
+		);
 
 		// return (
 		// 	sortedEdgeLeft[0].equals(sortedEdgeRight[0]) &&
@@ -792,8 +817,7 @@ export class ECCSlicer implements SlicerBase {
 			// }
 			// this.sliceArray[sliceIx].last = newCLL;
 
-			if (!insertionSuccess)
-			{
+			if (!insertionSuccess) {
 				let innerILL = new LinkedList<ECCIntersection>();
 				innerILL.insertAtEnd(eccInterData);
 				this.sliceArrayLL[sliceIx].insertAtEnd(innerILL);
@@ -890,7 +914,9 @@ export class ECCSlicer implements SlicerBase {
 		// print contour list for slice x
 		let sliceReport =
 			// this.sliceArray[Math.min(layerIndex, this.sliceArray.length - 1)];
-			this.sliceArrayLL[Math.min(layerIndex, this.sliceArrayLL.length - 1)];
+			this.sliceArrayLL[
+				Math.min(layerIndex, this.sliceArrayLL.length - 1)
+			];
 		let sliceBuffer: Array<THREE.Vector3> = [];
 		// if (sliceReport.head) {
 		// 	let sliceNode: ContourNode | null = sliceReport.head;
@@ -914,11 +940,16 @@ export class ECCSlicer implements SlicerBase {
 		// }
 		sliceReport.traverse((cll: ILLType, _cllNode: ListNode<ILLType>) => {
 			console.log("Traversing ILL, count: ", cll.getSize());
-			cll.traverse((intersection: ECCIntersection, _illNode: ListNode<ECCIntersection>) => {
-				let v = intersection.intersectionPoint;
-				sliceBuffer.push(v);
-				return true;
-			});
+			cll.traverse(
+				(
+					intersection: ECCIntersection,
+					_illNode: ListNode<ECCIntersection>
+				) => {
+					let v = intersection.intersectionPoint;
+					sliceBuffer.push(v);
+					return true;
+				}
+			);
 			return true;
 		});
 
