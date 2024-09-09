@@ -4,6 +4,7 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { ECCSlicer, SlicerBase } from "./slicer";
+import { PipeRenderer } from "./renderer";
 import WebGPURenderer from "three/examples/jsm/renderers/webgpu/WebGPURenderer";
 
 class App {
@@ -269,34 +270,11 @@ class App {
 							)
 						);
 					}
-					const lineGeo = new THREE.BufferGeometry().setFromPoints(
-						points
-					);
-					const line = new THREE.Line(
-						lineGeo,
-						new THREE.LineBasicMaterial({
-							linewidth: 4,
-							color: 0x00ff00,
-						})
-					);
-					this.scene.add(line);
-					this.sceneGraph.push(line);
-					// if (slicedGeometry.length > 0) {
-					// 	const sliceBufferGeo = new THREE.BufferGeometry();
-					// 	sliceBufferGeo.setAttribute('position', new THREE.BufferAttribute(slicedGeometry, 3));
-					// 	// BufferGeometryUtils.mergeVertices(sliceBufferGeo);
-					// 	sliceBufferGeo.computeVertexNormals();
-					// 	let basicMaterial = new THREE.MeshStandardMaterial({
-					// 		side: THREE.DoubleSide,
-					// 		color: 0xe06100,
-					// 	});
-					// 	let slicedMesh = new THREE.Mesh(
-					// 		sliceBufferGeo,
-					// 		basicMaterial
-					// 	);
-					// 	this.scene.add(slicedMesh);
-					// 	this.sceneGraph.push(slicedMesh);
-					// }
+
+					const pipes = new PipeRenderer(0.1);
+					const pipeObject = pipes.createAssemblyForPoints(points);
+					this.scene.add(pipeObject);
+					this.sceneGraph.push(pipeObject);
 				}
 			}
 		});
