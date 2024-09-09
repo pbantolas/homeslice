@@ -3,10 +3,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { ClippingSlicer, ECCSlicer, SlicerBase } from "./slicer";
+import { ECCSlicer, SlicerBase } from "./slicer";
 import WebGPURenderer from "three/examples/jsm/renderers/webgpu/WebGPURenderer";
-import { instance } from "three/examples/jsm/nodes/Nodes";
-import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
 
 class App {
 	scene: THREE.Scene;
@@ -85,7 +83,7 @@ class App {
 				depthTest: false,
 				color: 0xff0000,
 			});
-			let originMesh = new THREE.Mesh(originGeo, basicMat);
+			const originMesh = new THREE.Mesh(originGeo, basicMat);
 			originMesh.renderOrder = 999;
 			this.scene.add(originMesh);
 		}
@@ -162,7 +160,7 @@ class App {
 		if (!g.boundingBox) {
 			g.computeBoundingBox();
 		}
-		let bbox = g.boundingBox;
+		const bbox = g.boundingBox;
 		let yOffset = 0;
 		if (bbox) {
 			yOffset = bbox.min.z;
@@ -184,7 +182,7 @@ class App {
 		reader.addEventListener("load", (ev) => {
 			if (reader.readyState == FileReader.DONE && reader.result != null) {
 				const loader = new STLLoader();
-				let stlGeometry = loader.parse(reader.result);
+				const stlGeometry = loader.parse(reader.result);
 				let mat: THREE.Material = new THREE.MeshStandardMaterial({
 					color: 0x333333,
 					side: THREE.DoubleSide,
@@ -195,17 +193,17 @@ class App {
 
 				// stlGeometry.center();
 
-				let mesh = new THREE.Mesh(stlGeometry, mat);
+				const mesh = new THREE.Mesh(stlGeometry, mat);
 				// mesh.receiveShadow = true;
 				mesh.castShadow = true;
 
 				stlGeometry.computeVertexNormals();
 				stlGeometry.computeBoundingBox();
 
-				let slicerInputGroup = new THREE.Group();
+				const slicerInputGroup = new THREE.Group();
 				slicerInputGroup.add(mesh);
 
-				let stlViewerGroup = new THREE.Group();
+				const stlViewerGroup = new THREE.Group();
 				stlViewerGroup.add(
 					new THREE.Mesh(
 						stlGeometry,
@@ -219,10 +217,10 @@ class App {
 				);
 				// stlViewerGroup.scale.set(1.05, 1.05, 1.05);
 
-				let bbox = stlGeometry.boundingBox;
-				let groupGroundOffsetZ = new THREE.Vector3();
+				const bbox = stlGeometry.boundingBox;
+				const groupGroundOffsetZ = new THREE.Vector3();
 				if (bbox) {
-					let bboxSize = new THREE.Vector3();
+					const bboxSize = new THREE.Vector3();
 					bbox.getSize(bboxSize);
 
 					groupGroundOffsetZ.z = -bbox.min.z;
@@ -239,7 +237,7 @@ class App {
 				slicerInputGroup.position.copy(groupGroundOffsetZ);
 				stlViewerGroup.position.copy(groupGroundOffsetZ);
 
-				for (let m of this.sceneGraph) {
+				for (const m of this.sceneGraph) {
 					this.scene.remove(m);
 				}
 				this.sceneGraph = [];
@@ -256,8 +254,8 @@ class App {
 					this.activeSlicer.stats();
 					this.activeSlicer.slice();
 
-					let slicedGeometry = this.activeSlicer.getLayer(10);
-					let points = [];
+					const slicedGeometry = this.activeSlicer.getLayer(10);
+					const points = [];
 					for (
 						let triple = 0;
 						triple < slicedGeometry.length / 3;

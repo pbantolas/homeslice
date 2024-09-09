@@ -19,7 +19,7 @@ interface TriangleClipTask {
 export interface SlicerBase {
 	importObject(object: THREE.Object3D): void;
 	stats(): void;
-	slice(): Boolean;
+	slice(): boolean;
 	getLayer(layerIndex: number): Float32Array;
 }
 
@@ -51,7 +51,7 @@ export class ClippingSlicer implements SlicerBase {
 		return this.cachedLayerCount;
 	}
 
-	slice(): Boolean {
+	slice(): boolean {
 		return true;
 	}
 	// getLayer(layerIx : number): THREE.BufferGeometry | null {
@@ -569,7 +569,7 @@ export class ECCSlicer implements SlicerBase {
 	private checkIntersectionFromLeftNew(
 		left: ECCIntersection | null,
 		right: ECCIntersection | null
-	): Boolean {
+	): boolean {
 		if (left === null || right === null) return false;
 
 		// compare left edge 2 with right edge 1
@@ -612,7 +612,7 @@ export class ECCSlicer implements SlicerBase {
 	private checkIntersectionFromLeft(
 		left: Intersection | null,
 		right: Intersection | null
-	): Boolean {
+	): boolean {
 		if (left === null || right === null) return false;
 
 		// compare left edge 2 with right edge 1
@@ -650,9 +650,9 @@ export class ECCSlicer implements SlicerBase {
 		// let cllIndex = 0;
 
 		// let thisSliceContourList = this.sliceArray[sliceIx];
-		let thisSliceContourListNew = this.sliceArrayLL[sliceIx];
+		const thisSliceContourListNew = this.sliceArrayLL[sliceIx];
 
-		let eccInterData: ECCIntersection = {
+		const eccInterData: ECCIntersection = {
 			intersectionPoint: intersection.intersectionVertex,
 			edges: intersection.edges,
 		};
@@ -818,14 +818,14 @@ export class ECCSlicer implements SlicerBase {
 			// this.sliceArray[sliceIx].last = newCLL;
 
 			if (!insertionSuccess) {
-				let innerILL = new LinkedList<ECCIntersection>();
+				const innerILL = new LinkedList<ECCIntersection>();
 				innerILL.insertAtEnd(eccInterData);
 				this.sliceArrayLL[sliceIx].insertAtEnd(innerILL);
 			}
 		}
 	}
 
-	slice(): Boolean {
+	slice(): boolean {
 		if (this.triangles.length > 0) {
 			for (
 				let triIndex = 0;
@@ -834,9 +834,9 @@ export class ECCSlicer implements SlicerBase {
 			) {
 				this.triangles[triIndex].searchMinMaxZ();
 
-				let zOrderedTriangleSlices = this.triangles[triIndex].getSlices(
-					this.layerHeight
-				);
+				const zOrderedTriangleSlices = this.triangles[
+					triIndex
+				].getSlices(this.layerHeight);
 				if (zOrderedTriangleSlices.length == 0) {
 					console.error("Some error occured");
 					return false;
@@ -852,7 +852,10 @@ export class ECCSlicer implements SlicerBase {
 						fwBwEdges1[0].start.vertex
 					)
 					.normalize();
-				let slicePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+				const slicePlane = new THREE.Plane(
+					new THREE.Vector3(0, 0, 1),
+					0
+				);
 				for (
 					let j = zOrderedTriangleSlices[0];
 					j < zOrderedTriangleSlices[1];
@@ -860,12 +863,12 @@ export class ECCSlicer implements SlicerBase {
 				) {
 					slicePlane.constant = j * this.layerHeight;
 
-					let intersectionPoint = this.linePlaneIntersect(
+					const intersectionPoint = this.linePlaneIntersect(
 						slicePlane,
 						fwLineDirection,
 						fwBwEdges1[0].start.vertex
 					);
-					let intersectionEntry: Intersection = {
+					const intersectionEntry: Intersection = {
 						prev: null,
 						next: null,
 						edges: fwBwEdges1,
@@ -890,12 +893,12 @@ export class ECCSlicer implements SlicerBase {
 				) {
 					slicePlane.constant = k * this.layerHeight;
 
-					let intersectionPoint = this.linePlaneIntersect(
+					const intersectionPoint = this.linePlaneIntersect(
 						slicePlane,
 						fwLine2Direction,
 						fwBwEdges2[0].start.vertex
 					);
-					let intersectionEntry: Intersection = {
+					const intersectionEntry: Intersection = {
 						prev: null,
 						next: null,
 						edges: fwBwEdges2,
@@ -912,32 +915,11 @@ export class ECCSlicer implements SlicerBase {
 
 	getLayer(layerIndex: number): Float32Array {
 		// print contour list for slice x
-		let sliceReport =
-			// this.sliceArray[Math.min(layerIndex, this.sliceArray.length - 1)];
+		const sliceReport =
 			this.sliceArrayLL[
 				Math.min(layerIndex, this.sliceArrayLL.length - 1)
 			];
-		let sliceBuffer: Array<THREE.Vector3> = [];
-		// if (sliceReport.head) {
-		// 	let sliceNode: ContourNode | null = sliceReport.head;
-		// 	let sliceNumber = 0;
-		// 	while (sliceNode !== null) {
-		// 		// console.log(`CLL ${sliceNumber}`);
-		// 		let illNode = sliceNode.intersectionList.first;
-		// 		let illNumber = 0;
-		// 		while (illNode !== null) {
-		// 			// console.log(`ILL ${illNumber}`);
-
-		// 			let v = illNode.intersectionVertex;
-		// 			sliceBuffer.push(v);
-		// 			illNode = illNode.next;
-		// 			illNumber++;
-		// 		}
-
-		// 		sliceNumber++;
-		// 		sliceNode = sliceNode.next;
-		// 	}
-		// }
+		const sliceBuffer: Array<THREE.Vector3> = [];
 		sliceReport.traverse((cll: ILLType, _cllNode: ListNode<ILLType>) => {
 			console.log("Traversing ILL, count: ", cll.getSize());
 			cll.traverse(
@@ -954,11 +936,11 @@ export class ECCSlicer implements SlicerBase {
 		});
 
 		console.log("Top level CLL count: ", sliceReport.getSize());
-		let posArray = [];
-		for (let v3 of sliceBuffer) {
+		const posArray = [];
+		for (const v3 of sliceBuffer) {
 			posArray.push(v3.x, v3.y, v3.z);
 		}
-		let posArrayView = new Float32Array(posArray);
+		const posArrayView = new Float32Array(posArray);
 		return posArrayView;
 	}
 }

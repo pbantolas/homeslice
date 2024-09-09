@@ -1,5 +1,3 @@
-import { cache } from "three/examples/jsm/nodes/Nodes";
-
 export class ListNode<T> {
 	public prev: ListNode<T> | null = null;
 	public next: ListNode<T> | null = null;
@@ -7,7 +5,7 @@ export class ListNode<T> {
 }
 
 interface ILinkedList<T> {
-	traverse(fn: (item: T, node: ListNode<T>) => Boolean): void;
+	traverse(fn: (item: T, node: ListNode<T>) => boolean): void;
 	insertAtFront(data: T): ListNode<T>;
 	insertAtEnd(data: T): ListNode<T>;
 	getFront(): T | null;
@@ -20,17 +18,16 @@ export class LinkedList<T> implements ILinkedList<T> {
 	private head: ListNode<T> | null = null;
 	private tail: ListNode<T> | null = null;
 	private cachedCount: number = 0;
-	
+
 	public getSize(): number {
 		return this.cachedCount;
 	}
 
-	public traverse(fn: (item: T, node: ListNode<T>) => Boolean): void {
+	public traverse(fn: (item: T, node: ListNode<T>) => boolean): void {
 		let currentNode = this.head;
 		while (currentNode !== null) {
 			const nextNode = currentNode.next;
-			if (!fn(currentNode.data, currentNode))
-				break;
+			if (!fn(currentNode.data, currentNode)) break;
 			currentNode = nextNode;
 		}
 	}
@@ -66,14 +63,12 @@ export class LinkedList<T> implements ILinkedList<T> {
 	}
 
 	public getFront(): T | null {
-		if (this.head)
-			return this.head.data;
+		if (this.head) return this.head.data;
 		return null;
 	}
 
 	public getEnd(): T | null {
-		if (this.tail)
-			return this.tail.data;
+		if (this.tail) return this.tail.data;
 		return null;
 	}
 
@@ -81,8 +76,7 @@ export class LinkedList<T> implements ILinkedList<T> {
 		if (!node.prev) {
 			// node is head
 			this.head = node.next;
-			if (this.head)
-				this.head.prev = null;
+			if (this.head) this.head.prev = null;
 		} else {
 			node.prev.next = node.next;
 		}
@@ -90,8 +84,7 @@ export class LinkedList<T> implements ILinkedList<T> {
 		if (!node.next) {
 			// node is tail
 			this.tail = node.prev;
-			if (this.tail)
-				this.tail.next = null;
+			if (this.tail) this.tail.next = null;
 		} else {
 			node.next.prev = node.prev;
 		}
