@@ -140,6 +140,21 @@ class App {
 		});
 	}
 
+	private zoomToMesh(mesh: THREE.Object3D): void {
+		const boundingBox = new THREE.Box3().setFromObject(mesh);
+		const size = boundingBox.getSize(new THREE.Vector3());
+		const maxDim = Math.max(size.x, size.y, size.z);
+
+		const perspCamera = this.camera as THREE.PerspectiveCamera;
+		const distance = (maxDim / (2 * Math.tan((perspCamera.fov * Math.PI) / 180 / 2))) / 0.8;
+		const aspectRatio = window.innerWidth / window.innerHeight;
+		const cameraDir = new THREE.Vector3();
+		this.camera.getWorldDirection(cameraDir);
+		const targetPosition = mesh.position.clone().add(cameraDir.multiplyScalar(-distance));
+		this.camera.position.copy(targetPosition);
+		this.cameraController.update();
+	}
+
 	addDragHandling(el: HTMLElement) {
 		window.addEventListener("dragover", (ev) => {
 			ev.preventDefault();
@@ -152,15 +167,15 @@ class App {
 				console.log(`Loading STL: ${files[0].name}`);
 				this.loadFile(files[0]);
 			}
-			el.classList.remove("active");
+			el.classList.add("hidden");
 		});
 		window.addEventListener("dragenter", (ev) => {
 			ev.preventDefault();
-			el.classList.add("active");
+			el.classList.remove("hidden");
 		});
 		el.addEventListener("dragleave", (ev) => {
 			ev.preventDefault();
-			el.classList.remove("active");
+			el.classList.add("hidden");
 		});
 	}
 
@@ -224,11 +239,11 @@ class App {
 				stlViewerGroup.add(
 					new THREE.Mesh(
 						stlGeometry,
-						new THREE.MeshBasicMaterial({
-							wireframe: true,
-							opacity: 0.2,
+						new THREE.MeshStandardMaterial({
+							//wireframe: true,
+							opacity: 0.7,
 							transparent: true,
-							color: 0xffc8dd,
+							color: 0xaaaaaa,
 						})
 					)
 				);
@@ -291,6 +306,8 @@ class App {
 					// 	this.scene.add(m);
 					// }
 				}
+
+				this.zoomToMesh(stlViewerGroup);
 			}
 		});
 
@@ -302,11 +319,14 @@ class App {
 	}
 }
 
-const appInstance: App = new App(document.querySelector("#status-bar"));
-
 export function getAppState(): AppState {
 	return appInstance.getPublicState();
 }
 
-//app.addScrollHandling(document.querySelector('canvas')!);
+const appInstance: App = new App(document.querySelector("#status-bar"));
+
 appInstance.addDragHandling(document.querySelector("#dropzone")!);
+
+setTimeout(() => {
+	document.querySelector("#help")?.classList.add("hidden");
+}, 5000);

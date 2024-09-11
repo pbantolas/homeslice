@@ -4,53 +4,23 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>HomeSlice</title>
-
-		<style>
-			body {
-				margin: 0;
-			}
-
-			.dropzone-parent {
-				position: fixed;
-				z-index: 1000;
-				top: 0;
-				left: 0;
-				display: flex;
-				justify-content: center;
-				align-items: center;
-				height: 100vh;
-				pointer-events: none;
-			}
-
-			#dropzone {
-				width: 80vw;
-				height: 50vh;
-				opacity: 0;
-				background-color: #000;
-			}
-
-			#dropzone.active {
-				pointer-events: auto;
-				opacity: 0.5 !important;
-			}
-
-			.status-bar {
-				position: fixed;
-				width: 100vw;
-				bottom: 0;
-				left: 0;
-				opacity: 0.5;
-				background-color: #000;
-				color: #fff;
-			}
-		</style>
+		<link href="./homeslice.css" rel="stylesheet" />
 	</head>
 
 	<body>
-		<div class="dropzone-parent">
-			<div id="dropzone">Drag files here</div>
+		<div id="help" class="fixed inset-0 overflow-auto flex z-20">
+			<div class="rounded-lg relative text-center bg-gray-800 bg-opacity-75 p-9 w-full max-w-md m-auto flex-col flex text-white">
+				<h1 class="text-2xl">HomeSlice</h1>
+				<p>Start by dragging an .stl file to the plate</p>
+			</div>
 		</div>
-		<div id="status-bar" class="status-bar">status</div>
+		<div
+			id="dropzone"
+			class="fixed hidden inset-0 z-50 bg-gray-800 bg-opacity-50 flex items-center justify-center text-white text-2xl"
+		>
+			Drop .STL files here
+		</div>
+		<div id="status-bar" class="fixed w-full left-0 bottom-0 bg-slate-700 bg-opacity-50 text-white text-xl py-1">status</div>
 		<script type="module" src="src/main.ts"></script>
 	</body>
 </html>
