@@ -255,20 +255,13 @@ class App {
 					this.activeSlicer.stats();
 					this.activeSlicer.slice();
 
-					const slicedGeometry = this.activeSlicer.getLayer(9);
-					const points = [];
-					for (
-						let triple = 0;
-						triple < slicedGeometry.length / 3;
-						triple++
-					) {
-						points.push(
-							new THREE.Vector3(
-								slicedGeometry[triple * 3 + 0],
-								slicedGeometry[triple * 3 + 1],
-								slicedGeometry[triple * 3 + 2]
-							)
-						);
+					const contoursList = this.activeSlicer.getLayer(11);
+					const pipes = new PipeRenderer(0.3);
+					for (const contourItem of contoursList.contours) {
+						const pipeAssembly =
+							pipes.createAssemblyForBuffer(contourItem);
+						this.scene.add(pipeAssembly);
+						this.sceneGraph.push(pipeAssembly);
 					}
 
 					// debug spheres
@@ -281,11 +274,6 @@ class App {
 					// 	m.position.set(p.x, p.y, p.z);
 					// 	this.scene.add(m);
 					// }
-
-					const pipes = new PipeRenderer(0.3);
-					const pipeObject = pipes.createAssemblyForPoints(points);
-					this.scene.add(pipeObject);
-					this.sceneGraph.push(pipeObject);
 				}
 			}
 		});

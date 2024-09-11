@@ -11,11 +11,15 @@ interface TriangleClipTask {
 	tri: THREE.Triangle;
 }
 
+interface LayerContours {
+	contours: Float32Array[];
+}
+
 export interface SlicerBase {
 	importObject(object: THREE.Object3D): void;
 	stats(): void;
 	slice(): boolean;
-	getLayer(layerIndex: number): Float32Array;
+	getLayer(layerIndex: number): LayerContours;
 }
 
 export class ClippingSlicer implements SlicerBase {
@@ -49,9 +53,9 @@ export class ClippingSlicer implements SlicerBase {
 	slice(): boolean {
 		return true;
 	}
-	// getLayer(layerIx : number): THREE.BufferGeometry | null {
-	getLayer(layerIx: number): Float32Array {
-		if (!this.object) return new Float32Array(0);
+
+	getLayer(layerIx: number): LayerContours {
+		if (!this.object) return { contours: [new Float32Array(0)] };
 		// TODO: process all children
 		let mesh: THREE.Mesh | undefined;
 		const baseObjectOffset = this.object.position;
@@ -63,7 +67,7 @@ export class ClippingSlicer implements SlicerBase {
 		}
 		if (!mesh) {
 			console.error("Mesh undefined");
-			return new Float32Array(0);
+			return { contours: [new Float32Array(0)] };
 		}
 
 		layerIx = Math.min(layerIx, this.cachedLayerCount - 1);
@@ -220,10 +224,12 @@ export class ClippingSlicer implements SlicerBase {
 			// BufferGeometryUtils.mergeVertices(sliceBufferGeometry);
 			// sliceBufferGeometry.computeVertexNormals();
 			// return sliceBufferGeometry;
-			return sliceVerticesView;
+			return {
+				contours: [sliceVerticesView],
+			};
 		}
 
-		return new Float32Array(0);
+		return { contours: [new Float32Array(0)] };
 	}
 
 	private clip3(
@@ -790,38 +796,41 @@ export class ECCSlicer implements SlicerBase {
 		return true;
 	}
 
-	getLayer(layerIndex: number): Float32Array {
-		if (this.sliceArrayLL.length == 0) return new Float32Array(0);
+	getLayer(layerIndex: number): LayerContours {
+		if (this.sliceArrayLL.length == 0)
+			return { contours: [new Float32Array(0)] };
 		// print contour list for slice x
 		const sliceReport =
 			this.sliceArrayLL[
 				Math.min(layerIndex, this.sliceArrayLL.length - 1)
 			];
-		const sliceBuffer: Array<THREE.Vector3> = [];
 		let totalIntersections = 0;
+		const contourList: LayerContours = { contours: [] };
 		sliceReport.traverse((cll: ILLType, _cllNode: ListNode<ILLType>) => {
 			console.log("Traversing ILL, count: ", cll.getSize());
+
+			const accumulatedIntersections: Array<number> = [];
 			cll.traverse(
 				(
 					intersection: ECCIntersection,
 					_illNode: ListNode<ECCIntersection>
 				) => {
 					const v = intersection.intersectionPoint;
-					sliceBuffer.push(v);
+					accumulatedIntersections.push(v.x, v.y, v.z);
 					totalIntersections++;
 					return true;
 				}
 			);
+
+			contourList.contours.push(
+				new Float32Array(accumulatedIntersections)
+			);
+
 			return true;
 		});
 
 		console.log("Top level CLL count: ", sliceReport.getSize());
 		console.log(`Total intersections retrieved: ${totalIntersections}`);
-		const posArray = [];
-		for (const v3 of sliceBuffer) {
-			posArray.push(v3.x, v3.y, v3.z);
-		}
-		const posArrayView = new Float32Array(posArray);
-		return posArrayView;
+		return contourList;
 	}
 }
