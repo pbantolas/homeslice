@@ -1,7 +1,12 @@
+type ListId = symbol;
+
 export class ListNode<T> {
-	public prev: ListNode<T> | null = null;
-	public next: ListNode<T> | null = null;
-	constructor(public data: T) {}
+	public isMarkedForDeletion: boolean = false;
+	constructor(
+		public data: T,
+		public prev: ListNode<T> | null = null,
+		public next: ListNode<T> | null = null
+	) {}
 }
 
 interface ILinkedList<T> {
@@ -12,7 +17,7 @@ interface ILinkedList<T> {
 	insertValueAtEnd(data: T): ListNode<T>;
 	getFront(): T | null;
 	getEnd(): T | null;
-	deleteNode(node: ListNode<T>): void;
+	markNodeForDeletion(node: ListNode<T>): void;
 	getSize(): number;
 }
 
@@ -20,6 +25,8 @@ export class LinkedList<T> implements ILinkedList<T> {
 	private head: ListNode<T> | null = null;
 	private tail: ListNode<T> | null = null;
 	private cachedCount: number = 0;
+	private listId: ListId = Symbol();
+	private nodesToDelete: Set<ListNode<T>> = new Set();
 
 	public getSize(): number {
 		return this.cachedCount;
@@ -28,10 +35,12 @@ export class LinkedList<T> implements ILinkedList<T> {
 	public traverse(fn: (item: T, node: ListNode<T>) => boolean): void {
 		let currentNode = this.head;
 		while (currentNode !== null) {
-			const nextNode = currentNode.next;
+			if (currentNode.isMarkedForDeletion) continue;
+			// const nextNode = currentNode.next;
 			if (!fn(currentNode.data, currentNode)) break;
-			currentNode = nextNode;
+			currentNode = currentNode.next;
 		}
+		this.performDeferredDeletions();
 	}
 
 	public insertNodeAtFront(node: ListNode<T>): ListNode<T> {
@@ -88,7 +97,21 @@ export class LinkedList<T> implements ILinkedList<T> {
 		return null;
 	}
 
-	public deleteNode(node: ListNode<T>): void {
+	public markNodeForDeletion(node: ListNode<T>): void {
+		if (node) {
+			node.isMarkedForDeletion = true;
+			this.nodesToDelete.add(node);
+		}
+	}
+
+	private performDeferredDeletions(): void {
+		for (const node of this.nodesToDelete) {
+			this.deleteNode(node);
+		}
+		this.nodesToDelete.clear();
+	}
+
+	private deleteNode(node: ListNode<T>): void {
 		if (!node.prev) {
 			// node is head
 			this.head = node.next;

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { ListNode, LinkedList } from "./linked-list";
+import { getAppState } from "./main";
 
 enum ClipType {
 	Below,
@@ -41,9 +42,11 @@ export class ClippingSlicer implements SlicerBase {
 	}
 
 	stats() {
-		console.log("--- Slicer ---");
-		console.log("Layer Height: ", this.layerHeight);
-		console.log("Layers: ", this.cachedLayerCount);
+		if (getAppState().debug) {
+			console.log("--- Slicer ---");
+			console.log("Layer Height: ", this.layerHeight);
+			console.log("Layers: ", this.cachedLayerCount);
+		}
 	}
 
 	get layerCount(): number {
@@ -66,7 +69,9 @@ export class ClippingSlicer implements SlicerBase {
 			}
 		}
 		if (!mesh) {
-			console.error("Mesh undefined");
+			if (getAppState().debug) {
+				console.error("Mesh undefined");
+			}
 			return { contours: [new Float32Array(0)] };
 		}
 
@@ -657,7 +662,9 @@ export class ECCSlicer implements SlicerBase {
 						if (checkForward) {
 							// delete CLL_i
 							if (intersectionLinkedListObject)
-								thisSliceContourList.deleteNode(cllNode);
+								thisSliceContourList.markNodeForDeletion(
+									cllNode
+								);
 							terminateInsertion = true;
 							return false;
 						}
@@ -688,7 +695,7 @@ export class ECCSlicer implements SlicerBase {
 								throw new Error(
 									"Didn't cache previous insertion position"
 								);
-							thisSliceContourList.deleteNode(
+							thisSliceContourList.markNodeForDeletion(
 								cachedBackwardInsertionCLLNode
 							);
 							terminateInsertion = true;
@@ -807,7 +814,8 @@ export class ECCSlicer implements SlicerBase {
 		let totalIntersections = 0;
 		const contourList: LayerContours = { contours: [] };
 		sliceReport.traverse((cll: ILLType, _cllNode: ListNode<ILLType>) => {
-			console.log("Traversing ILL, count: ", cll.getSize());
+			if (getAppState().debug)
+				console.log("Traversing ILL, count: ", cll.getSize());
 
 			const accumulatedIntersections: Array<number> = [];
 			cll.traverse(
@@ -829,8 +837,10 @@ export class ECCSlicer implements SlicerBase {
 			return true;
 		});
 
-		console.log("Top level CLL count: ", sliceReport.getSize());
-		console.log(`Total intersections retrieved: ${totalIntersections}`);
+		if (getAppState().debug) {
+			console.log("Top level CLL count: ", sliceReport.getSize());
+			console.log(`Total intersections retrieved: ${totalIntersections}`);
+		}
 		return contourList;
 	}
 }
