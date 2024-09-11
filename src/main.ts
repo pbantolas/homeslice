@@ -8,6 +8,8 @@ import { PipeRenderer } from "./renderer";
 import WebGPU from "three/examples/jsm/capabilities/WebGPU";
 import WebGPURenderer from "three/examples/jsm/renderers/webgpu/WebGPURenderer";
 
+export const HOMESLICE_VERSION = '0.1.0';
+
 interface AppState {
 	debug: boolean;
 }
@@ -30,6 +32,8 @@ class App {
 		this.state = {
 			debug: false,
 		};
+
+		console.log(`--- HomeSlice version ${HOMESLICE_VERSION}`);
 
 		THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
 
