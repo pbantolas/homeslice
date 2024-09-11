@@ -5,23 +5,31 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { ECCSlicer, SlicerBase } from "./slicer";
 import { PipeRenderer } from "./renderer";
+import WebGPU from "three/examples/jsm/capabilities/WebGPU";
 import WebGPURenderer from "three/examples/jsm/renderers/webgpu/WebGPURenderer";
+
+interface AppState {
+	debug: boolean;
+}
 
 class App {
 	scene: THREE.Scene;
 	camera: THREE.Camera;
 	// renderer: THREE.WebGLRenderer;
-	renderer: WebGPURenderer;
+	renderer: WebGPURenderer | THREE.WebGLRenderer;
 	cameraController: OrbitControls;
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: SlicerBase;
-	debug = false;
+	private state: AppState;
 
 	constructor(statusBar: HTMLElement | null) {
 		this.scene = new THREE.Scene();
 		this.sceneGraph = [];
 		this.statusBar = statusBar;
+		this.state = {
+			debug: false,
+		};
 
 		THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
 
@@ -48,8 +56,12 @@ class App {
 			1000
 		);
 
-		// this.renderer = new THREE.WebGLRenderer();
-		this.renderer = new WebGPURenderer();
+		if (WebGPU.isAvailable()) {
+			this.renderer = new WebGPURenderer();
+		} else {
+			console.log("WebGPU not supported. Falling back to WebGL!");
+			this.renderer = new THREE.WebGLRenderer({ antialias: true });
+		}
 		this.renderer.shadowMap.enabled = true;
 		this.renderer.shadowMap.type = THREE.PCFShadowMap;
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -78,7 +90,7 @@ class App {
 		this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 		this.cameraController.update();
 
-		if (this.debug) {
+		if (this.state.debug) {
 			const originGeo = new THREE.SphereGeometry(0.7, 8, 8);
 			const basicMat = new THREE.MeshBasicMaterial({
 				depthTest: false,
@@ -188,7 +200,7 @@ class App {
 					color: 0x333333,
 					side: THREE.DoubleSide,
 				});
-				if (this.debug) {
+				if (this.state.debug) {
 					mat = new THREE.MeshBasicMaterial({ wireframe: true });
 				}
 
@@ -280,8 +292,17 @@ class App {
 
 		reader.readAsArrayBuffer(f);
 	}
+
+	public getPublicState(): AppState {
+		return this.state;
+	}
 }
 
-const app: App = new App(document.querySelector("#status-bar"));
+const appInstance: App = new App(document.querySelector("#status-bar"));
+
+export function getAppState(): AppState {
+	return appInstance.getPublicState();
+}
+
 //app.addScrollHandling(document.querySelector('canvas')!);
-app.addDragHandling(document.querySelector("#dropzone")!);
+appInstance.addDragHandling(document.querySelector("#dropzone")!);
