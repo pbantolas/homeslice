@@ -148,7 +148,7 @@ class App {
 		});
 	}
 
-	addScrollHandling(el: HTMLElement) {
+	addScrollHandling(_el: HTMLElement) {
 		document.addEventListener("wheel", (evt) => {
 			evt.preventDefault();
 			const { deltaX, deltaY } = evt;
@@ -180,7 +180,7 @@ class App {
 
 	loadFile(f: File) {
 		const reader = new FileReader();
-		reader.addEventListener("load", (ev) => {
+		reader.addEventListener("load", (_ev) => {
 			if (reader.readyState == FileReader.DONE && reader.result != null) {
 				const loader = new STLLoader();
 				const stlGeometry = loader.parse(reader.result);
@@ -255,7 +255,7 @@ class App {
 					this.activeSlicer.stats();
 					this.activeSlicer.slice();
 
-					const slicedGeometry = this.activeSlicer.getLayer(10);
+					const slicedGeometry = this.activeSlicer.getLayer(9);
 					const points = [];
 					for (
 						let triple = 0;
@@ -271,7 +271,18 @@ class App {
 						);
 					}
 
-					const pipes = new PipeRenderer(0.1);
+					// debug spheres
+					// for (const p of points) {
+					// 	const sphGeo = new THREE.SphereGeometry(0.3);
+					// 	const sphMat = new THREE.MeshBasicMaterial({
+					// 		color: new THREE.Color("green"),
+					// 	});
+					// 	const m = new THREE.Mesh(sphGeo, sphMat);
+					// 	m.position.set(p.x, p.y, p.z);
+					// 	this.scene.add(m);
+					// }
+
+					const pipes = new PipeRenderer(0.3);
 					const pipeObject = pipes.createAssemblyForPoints(points);
 					this.scene.add(pipeObject);
 					this.sceneGraph.push(pipeObject);

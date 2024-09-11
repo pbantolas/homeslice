@@ -6,8 +6,10 @@ export class ListNode<T> {
 
 interface ILinkedList<T> {
 	traverse(fn: (item: T, node: ListNode<T>) => boolean): void;
-	insertAtFront(data: T): ListNode<T>;
-	insertAtEnd(data: T): ListNode<T>;
+	insertNodeAtFront(node: ListNode<T>): ListNode<T>;
+	insertNodeAtEnd(node: ListNode<T>): ListNode<T>;
+	insertValueAtFront(data: T): ListNode<T>;
+	insertValueAtEnd(data: T): ListNode<T>;
 	getFront(): T | null;
 	getEnd(): T | null;
 	deleteNode(node: ListNode<T>): void;
@@ -32,8 +34,10 @@ export class LinkedList<T> implements ILinkedList<T> {
 		}
 	}
 
-	public insertAtFront(data: T): ListNode<T> {
-		const node = new ListNode(data);
+	public insertNodeAtFront(node: ListNode<T>): ListNode<T> {
+		if (node.next)
+			throw new Error("Trying to insert node that has a right neighbor");
+
 		if (!this.head) {
 			this.head = node;
 			this.tail = node;
@@ -47,8 +51,10 @@ export class LinkedList<T> implements ILinkedList<T> {
 		return node;
 	}
 
-	public insertAtEnd(data: T): ListNode<T> {
-		const node = new ListNode(data);
+	public insertNodeAtEnd(node: ListNode<T>): ListNode<T> {
+		if (node.prev)
+			throw new Error("Trying to insert node that has a left neighbour");
+
 		if (!this.tail) {
 			this.head = node;
 			this.tail = node;
@@ -60,6 +66,16 @@ export class LinkedList<T> implements ILinkedList<T> {
 
 		this.cachedCount++;
 		return node;
+	}
+
+	public insertValueAtFront(data: T): ListNode<T> {
+		const node = new ListNode(data);
+		return this.insertNodeAtFront(node);
+	}
+
+	public insertValueAtEnd(data: T): ListNode<T> {
+		const node = new ListNode(data);
+		return this.insertNodeAtEnd(node);
 	}
 
 	public getFront(): T | null {
