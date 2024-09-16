@@ -5,10 +5,8 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { ECCSlicer, SlicerBase } from "./slicer";
 import { PipeRenderer } from "./renderer";
-import WebGPU from "three/examples/jsm/capabilities/WebGPU";
-import WebGPURenderer from "three/examples/jsm/renderers/webgpu/WebGPURenderer";
 
-export const HOMESLICE_VERSION = '0.1.0';
+export const HOMESLICE_VERSION = "0.1.1";
 
 interface AppState {
 	debug: boolean;
@@ -16,9 +14,8 @@ interface AppState {
 
 class App {
 	scene: THREE.Scene;
-	camera: THREE.Camera;
-	// renderer: THREE.WebGLRenderer;
-	renderer: WebGPURenderer | THREE.WebGLRenderer;
+	camera: THREE.PerspectiveCamera;
+	renderer: THREE.WebGLRenderer;
 	cameraController: OrbitControls;
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
@@ -60,12 +57,7 @@ class App {
 			1000
 		);
 
-		if (WebGPU.isAvailable()) {
-			this.renderer = new WebGPURenderer();
-		} else {
-			console.log("WebGPU not supported. Falling back to WebGL!");
-			this.renderer = new THREE.WebGLRenderer({ antialias: true });
-		}
+		this.renderer = new THREE.WebGLRenderer({ antialias: true });
 		this.renderer.shadowMap.enabled = true;
 		this.renderer.shadowMap.type = THREE.PCFShadowMap;
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -106,11 +98,16 @@ class App {
 		}
 
 		// const planeGeo = new THREE.PlaneGeometry(100, 100);
-		// const planeMat = new THREE.MeshStandardMaterial({color: 0x00ff00, transparent: true, opacity: 0.5});
+		// const planeMat = new THREE.MeshStandardMaterial({
+		// 	color: 0xffffff,
+		// 	transparent: true,
+		// 	opacity: 0.3,
+		// 	side: THREE.DoubleSide,
+		// });
 		// const planeMesh = new THREE.Mesh(planeGeo, planeMat);
 		// this.scene.add(planeMesh);
-		// planeMesh.position.z = 2.2;
-		// planeMesh.rotation.x = -Math.PI/2;
+		// planeMesh.position.z = 0.2 * 11;
+		// planeMesh.rotation.x = -Math.PI / 2;
 		// const gridHelper = new THREE.GridHelper(250, 10);
 		// this.scene.add(gridHelper)
 
@@ -138,6 +135,12 @@ class App {
 		this.renderer.setAnimationLoop(() => {
 			this.animate();
 		});
+
+		window.addEventListener("resize", () => {
+			this.camera.aspect = window.innerWidth / window.innerHeight;
+			this.camera.updateProjectionMatrix();
+			this.renderer.setSize(window.innerWidth, window.innerHeight);
+		});
 	}
 
 	private zoomToMesh(mesh: THREE.Object3D): void {
@@ -146,11 +149,16 @@ class App {
 		const maxDim = Math.max(size.x, size.y, size.z);
 
 		const perspCamera = this.camera as THREE.PerspectiveCamera;
-		const distance = (maxDim / (2 * Math.tan((perspCamera.fov * Math.PI) / 180 / 2))) / 0.8;
+		const distance =
+			maxDim /
+			(2 * Math.tan((perspCamera.fov * Math.PI) / 180 / 2)) /
+			0.8;
 		const aspectRatio = window.innerWidth / window.innerHeight;
 		const cameraDir = new THREE.Vector3();
 		this.camera.getWorldDirection(cameraDir);
-		const targetPosition = mesh.position.clone().add(cameraDir.multiplyScalar(-distance));
+		const targetPosition = mesh.position
+			.clone()
+			.add(cameraDir.multiplyScalar(-distance));
 		this.camera.position.copy(targetPosition);
 		this.cameraController.update();
 	}
@@ -278,7 +286,6 @@ class App {
 				this.scene.add(stlViewerGroup);
 				this.sceneGraph.push(stlViewerGroup);
 
-				// this.activeSlicer = new ClippingSlicer();
 				this.activeSlicer = new ECCSlicer();
 
 				if (this.activeSlicer) {
@@ -286,8 +293,8 @@ class App {
 					this.activeSlicer.stats();
 					this.activeSlicer.slice();
 
-					const contoursList = this.activeSlicer.getLayer(11);
-					const pipes = new PipeRenderer(0.3);
+					const contoursList = this.activeSlicer.getLayer(5);
+					const pipes = new PipeRenderer(0.15);
 					for (const contourItem of contoursList.contours) {
 						const pipeAssembly =
 							pipes.createAssemblyForBuffer(contourItem);
@@ -296,15 +303,38 @@ class App {
 					}
 
 					// debug spheres
-					// for (const p of points) {
-					// 	const sphGeo = new THREE.SphereGeometry(0.3);
-					// 	const sphMat = new THREE.MeshBasicMaterial({
-					// 		color: new THREE.Color("green"),
-					// 	});
-					// 	const m = new THREE.Mesh(sphGeo, sphMat);
-					// 	m.position.set(p.x, p.y, p.z);
-					// 	this.scene.add(m);
-					// }
+					if (false) {
+						let spheresAdded = 0;
+						let terminateSpheres = false;
+						for (const contourEntry of contoursList.contours) {
+							for (
+								let pIx = 0;
+								pIx < contourEntry.length / 3;
+								pIx++
+							) {
+								const sphGeo = new THREE.SphereGeometry(0.1);
+								const sphMat = new THREE.MeshBasicMaterial({
+									color: new THREE.Color("green"),
+								});
+								const m = new THREE.Mesh(sphGeo, sphMat);
+								m.position.set(
+									contourEntry[pIx * 3 + 0],
+									contourEntry[pIx * 3 + 1],
+									contourEntry[pIx * 3 + 2]
+								);
+								this.scene.add(m);
+								// spheresAdded++;
+								// if (spheresAdded >= 40) {
+								// 	console.log(
+								// 		"problematic at " + m.position.toArray()
+								// 	);
+								// 	terminateSpheres = true;
+								// 	break;
+								// }
+							}
+							if (terminateSpheres) break;
+						}
+					}
 				}
 
 				this.zoomToMesh(stlViewerGroup);

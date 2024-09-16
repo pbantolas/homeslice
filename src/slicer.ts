@@ -1,16 +1,6 @@
 import * as THREE from "three";
 import { ListNode, LinkedList } from "./linked-list";
-import { getAppState } from "./main";
-
-enum ClipType {
-	Below,
-	Above,
-}
-
-interface TriangleClipTask {
-	type: ClipType;
-	tri: THREE.Triangle;
-}
+import { veryClose } from "./util";
 
 interface LayerContours {
 	contours: Float32Array[];
@@ -21,295 +11,6 @@ export interface SlicerBase {
 	stats(): void;
 	slice(): boolean;
 	getLayer(layerIndex: number): LayerContours;
-}
-
-export class ClippingSlicer implements SlicerBase {
-	layerHeight: number = 0.2;
-	object?: THREE.Object3D;
-	bbox: THREE.Box3;
-	private cachedLayerCount = 0;
-	constructor() {
-		this.bbox = new THREE.Box3();
-	}
-
-	importObject(object: THREE.Object3D) {
-		this.object = object;
-		this.bbox = new THREE.Box3().setFromObject(this.object);
-
-		const meshSize = new THREE.Vector3();
-		this.bbox.getSize(meshSize);
-		this.cachedLayerCount = Math.ceil(meshSize.z / this.layerHeight);
-	}
-
-	stats() {
-		if (getAppState().debug) {
-			console.log("--- Slicer ---");
-			console.log("Layer Height: ", this.layerHeight);
-			console.log("Layers: ", this.cachedLayerCount);
-		}
-	}
-
-	get layerCount(): number {
-		return this.cachedLayerCount;
-	}
-
-	slice(): boolean {
-		return true;
-	}
-
-	getLayer(layerIx: number): LayerContours {
-		if (!this.object) return { contours: [new Float32Array(0)] };
-		// TODO: process all children
-		let mesh: THREE.Mesh | undefined;
-		const baseObjectOffset = this.object.position;
-		for (const c of this.object.children) {
-			if (c instanceof THREE.Mesh) {
-				mesh = c;
-				break;
-			}
-		}
-		if (!mesh) {
-			if (getAppState().debug) {
-				console.error("Mesh undefined");
-			}
-			return { contours: [new Float32Array(0)] };
-		}
-
-		layerIx = Math.min(layerIx, this.cachedLayerCount - 1);
-
-		const posAttr = mesh.geometry.getAttribute("position");
-		let isIndexed = false;
-		if (posAttr) {
-			console.log("Has position attribute.");
-			if (mesh.geometry.index) {
-				console.log("It is indexed.");
-				isIndexed = true;
-			}
-			const vertexCount = posAttr.count;
-			console.log("Num vertices: ", vertexCount);
-
-			let triCount = 0;
-			if (!isIndexed) triCount = vertexCount / 3;
-			console.log("Num triangles: ", triCount);
-
-			const sliceStartTime = performance.now();
-
-			const belowPlane = new THREE.Plane(
-				new THREE.Vector3(0, 0, 1),
-				this.layerHeight * layerIx
-			);
-			const abovePlane = new THREE.Plane(
-				new THREE.Vector3(0, 0, -1),
-				-this.layerHeight * (layerIx + 1)
-			);
-
-			const triangleListToProcess: Array<TriangleClipTask> = [];
-			for (let triIx = 0; triIx < triCount; triIx++) {
-				const vtx1 = new THREE.Vector3();
-				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
-					vtx1.setComponent(vtxIx, posAttr.array[triIx * 9 + vtxIx]);
-				}
-				vtx1.add(baseObjectOffset);
-				const vtx2 = new THREE.Vector3();
-				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
-					vtx2.setComponent(
-						vtxIx,
-						posAttr.array[triIx * 9 + vtxIx + 3]
-					);
-				}
-				vtx2.add(baseObjectOffset);
-				const vtx3 = new THREE.Vector3();
-				for (let vtxIx = 0; vtxIx < 3; ++vtxIx) {
-					vtx3.setComponent(
-						vtxIx,
-						posAttr.array[triIx * 9 + vtxIx + 6]
-					);
-				}
-				vtx3.add(baseObjectOffset);
-
-				// let tri = new THREE.Triangle(vtx1, vtx2, vtx3);
-				triangleListToProcess.push({
-					type: ClipType.Below,
-					tri: new THREE.Triangle(vtx1, vtx2, vtx3),
-				});
-			}
-
-			const clippedTrianglesOut: Array<THREE.Triangle> = [];
-			while (triangleListToProcess.length > 0) {
-				const clippedVtx = new THREE.Vector3();
-				const triangleTask =
-					triangleListToProcess.pop() as TriangleClipTask;
-
-				switch (triangleTask.type) {
-					case ClipType.Below: {
-						const clipResultBelow = this.clip3(
-							triangleTask.tri,
-							belowPlane,
-							clippedVtx
-						);
-						if (clipResultBelow > 0) {
-							const triTask1: TriangleClipTask = {
-								type: ClipType.Above,
-								tri: new THREE.Triangle(
-									triangleTask.tri.a,
-									triangleTask.tri.b,
-									triangleTask.tri.c
-								),
-							};
-							triangleListToProcess.push(triTask1);
-
-							if (clipResultBelow > 3) {
-								const triTask2: TriangleClipTask = {
-									type: ClipType.Above,
-									tri: new THREE.Triangle(
-										triangleTask.tri.a,
-										triangleTask.tri.c,
-										clippedVtx
-									),
-								};
-								triangleListToProcess.push(triTask2);
-							}
-						}
-						break;
-					}
-
-					case ClipType.Above: {
-						const clipResultAbove = this.clip3(
-							triangleTask.tri,
-							abovePlane,
-							clippedVtx
-						);
-						if (clipResultAbove > 0) {
-							clippedTrianglesOut.push(
-								new THREE.Triangle(
-									triangleTask.tri.a,
-									triangleTask.tri.b,
-									triangleTask.tri.c
-								)
-							);
-							if (clipResultAbove > 3) {
-								clippedTrianglesOut.push(
-									new THREE.Triangle(
-										triangleTask.tri.a,
-										triangleTask.tri.c,
-										clippedVtx
-									)
-								);
-							}
-						}
-						break;
-					}
-
-					default:
-						break;
-				}
-			}
-
-			const slicePositionBuffer: Array<number> = [];
-			for (const tri of clippedTrianglesOut) {
-				slicePositionBuffer.push(
-					tri.a.x,
-					tri.a.y,
-					tri.a.z,
-					tri.b.x,
-					tri.b.y,
-					tri.b.z,
-					tri.c.x,
-					tri.c.y,
-					tri.c.z
-				);
-			}
-
-			// let sliceBufferGeometry = new THREE.BufferGeometry();
-			const sliceVerticesView = new Float32Array(slicePositionBuffer);
-			const sliceEndTime = performance.now();
-			console.log(`Slicing took ${sliceEndTime - sliceStartTime} ms`);
-
-			// sliceBufferGeometry.setAttribute('position', new THREE.BufferAttribute(sliceVerticesView, 3));
-			// BufferGeometryUtils.mergeVertices(sliceBufferGeometry);
-			// sliceBufferGeometry.computeVertexNormals();
-			// return sliceBufferGeometry;
-			return {
-				contours: [sliceVerticesView],
-			};
-		}
-
-		return { contours: [new Float32Array(0)] };
-	}
-
-	private clip3(
-		tri: THREE.Triangle,
-		plane: THREE.Plane,
-		clippedVtx: THREE.Vector3
-	): number {
-		const clipEps1 = 0.00001;
-		const clipEps2 = 0.01;
-
-		const v0 = tri.a.clone();
-		const v1 = tri.b.clone();
-		const v2 = tri.c.clone();
-		const planeOffset = plane.normal.clone().multiplyScalar(plane.constant);
-		v0.sub(planeOffset);
-		v1.sub(planeOffset);
-		v2.sub(planeOffset);
-
-		let dist = new THREE.Vector3(
-			v0.dot(plane.normal),
-			v1.dot(plane.normal),
-			v2.dot(plane.normal)
-		);
-
-		if (!(dist.x >= clipEps2 || dist.y >= clipEps2 || dist.z >= clipEps2))
-			return 0;
-
-		if (dist.x >= -clipEps1 && dist.y >= -clipEps1 && dist.z >= -clipEps1) {
-			clippedVtx.copy(v0);
-			return 3;
-		}
-
-		const above: Array<boolean> = [false, false, false];
-		above[0] = dist.x >= 0;
-		above[1] = dist.y >= 0;
-		above[2] = dist.z >= 0;
-		let nextIsAbove = false;
-
-		if (above[1] && !above[0]) {
-			nextIsAbove = above[2];
-			clippedVtx.copy(v0);
-			v0.copy(v1);
-			v1.copy(v2);
-			v2.copy(clippedVtx);
-			dist = new THREE.Vector3(dist.y, dist.z, dist.x);
-		} else if (above[2] && !above[1]) {
-			nextIsAbove = above[0];
-			clippedVtx.copy(v2);
-			v2.copy(v1);
-			v1.copy(v0);
-			v0.copy(clippedVtx);
-			dist = new THREE.Vector3(dist.z, dist.x, dist.y);
-		} else {
-			nextIsAbove = above[1];
-		}
-
-		clippedVtx.lerpVectors(v0, v2, dist.x / (dist.x - dist.z));
-
-		let numOutVertices = 3;
-		if (nextIsAbove) {
-			v2.lerpVectors(v1, v2, dist.y / (dist.y - dist.z));
-			numOutVertices = 4;
-		} else {
-			v1.lerpVectors(v0, v1, dist.x / (dist.x - dist.y));
-			v2.copy(clippedVtx);
-			clippedVtx.copy(v0);
-			numOutVertices = 3;
-		}
-
-		tri.a = v0.add(planeOffset);
-		tri.b = v1.add(planeOffset);
-		tri.c = v2.add(planeOffset);
-		clippedVtx.add(planeOffset);
-		return numOutVertices;
-	}
 }
 
 /* ECC Paper */
@@ -357,11 +58,11 @@ class ECCTriangle {
 	vertexMax?: ECCVertex;
 	edges?: Array<ECCEdge>;
 
-	private cachedFwBwEdges1?: Array<ECCEdge>;
-	private cachedFwBwEdges2?: Array<ECCEdge>;
+	private cachedSlicedEdgePairForPhase: Array<Array<ECCEdge>>;
 
 	constructor(t: THREE.Triangle) {
 		this.triangle = t;
+		this.cachedSlicedEdgePairForPhase = new Array(2);
 	}
 
 	private orderVertices() {
@@ -428,7 +129,7 @@ class ECCTriangle {
 		return [];
 	}
 
-	getFwBwEdges1(): Array<ECCEdge> {
+	getSlicedEdgePairForPhase(phase: number): Array<ECCEdge> {
 		if (
 			!(this.vertexMin && this.vertexMed && this.vertexMax && this.edges)
 		) {
@@ -436,45 +137,24 @@ class ECCTriangle {
 			return [];
 		}
 
-		if (this.cachedFwBwEdges1) return this.cachedFwBwEdges1;
+		if (phase < 0 || phase > 1)
+			throw new Error("Part index should be 0 or 1");
+
+		if (this.cachedSlicedEdgePairForPhase[phase])
+			return this.cachedSlicedEdgePairForPhase[phase];
 
 		let result: Array<ECCEdge>;
+		const secondEdge = this.edges[phase + 1];
 		if (this.edges[0].start === this.vertexMin) {
 			// oriented normal
 			// group 1, 2
-			result = [this.edges[1], this.edges[0]];
+			result = [secondEdge, this.edges[0]];
 		} else if (this.edges[0].start === this.vertexMax) {
-			result = [this.edges[0], this.edges[1]];
+			result = [this.edges[0], secondEdge];
 		} else {
-			throw new Error("Incorrect match between s1 edge and vmax, vmin");
-			result = [];
+			throw new Error("Edge 0 is not spanning [vmin, vmax]");
 		}
-		this.cachedFwBwEdges1 = result;
-		return result;
-	}
-
-	getFwBwEdges2(): Array<ECCEdge> {
-		if (
-			!(this.vertexMin && this.vertexMed && this.vertexMax && this.edges)
-		) {
-			console.error("No triangle analysis run");
-			return [];
-		}
-
-		if (this.cachedFwBwEdges2) return this.cachedFwBwEdges2;
-
-		let result: Array<ECCEdge>;
-		if (this.edges[0].start === this.vertexMin) {
-			// oriented normal
-			// group 1, 2
-			result = [this.edges[2], this.edges[0]];
-		} else if (this.edges[0].start === this.vertexMax) {
-			result = [this.edges[0], this.edges[2]];
-		} else {
-			throw new Error("Incorrect match between s1 edge and vmax, vmin");
-			result = [];
-		}
-		this.cachedFwBwEdges2 = result;
+		this.cachedSlicedEdgePairForPhase[phase] = result;
 		return result;
 	}
 }
@@ -549,14 +229,16 @@ export class ECCSlicer implements SlicerBase {
 
 	private linePlaneIntersect(
 		plane: THREE.Plane,
-		lineDirection: THREE.Vector3,
-		linePoint: THREE.Vector3
-	): THREE.Vector3 {
-		const dotLN = lineDirection.dot(plane.normal);
+		// lineDirection: THREE.Vector3,
+		edge: ECCEdge
+		// linePoint: THREE.Vector3
+	): THREE.Vector3 | undefined {
+		const edgeDirection = edge.end.vertex.clone().sub(edge.start.vertex);
+		const dotLN = edgeDirection.dot(plane.normal);
 		const planePoint = plane.normal.clone().multiplyScalar(plane.constant);
-		const p0SubL0 = planePoint.clone().sub(linePoint);
 		const returnedPoint = planePoint.clone();
-		if (dotLN == 0) {
+		if (Math.abs(dotLN) < 1e-4) {
+			const p0SubL0 = planePoint.clone().sub(edge.start.vertex);
 			if (p0SubL0.dot(plane.normal) != 0)
 				throw new Error(
 					"Line not contained in plane that should contain it."
@@ -566,9 +248,18 @@ export class ECCSlicer implements SlicerBase {
 			return returnedPoint;
 		}
 
-		const dist = p0SubL0.dot(plane.normal) / dotLN;
+		const t = plane.normal.dot(planePoint.sub(edge.start.vertex)) / dotLN;
 
-		returnedPoint.copy(lineDirection).multiplyScalar(dist).add(linePoint);
+		returnedPoint
+			.copy(edgeDirection)
+			.multiplyScalar(t)
+			.add(edge.start.vertex);
+		const isCloseToStart =
+			edge.start.vertex.distanceTo(returnedPoint) < 1e-4;
+		const isCloseToEnd = edge.end.vertex.distanceTo(returnedPoint) < 1e-4;
+		if (t < 0 || t > 1) {
+			if (!isCloseToStart && !isCloseToEnd) return undefined;
+		}
 		return returnedPoint;
 	}
 
@@ -581,13 +272,9 @@ export class ECCSlicer implements SlicerBase {
 		const areVectorsEqual = (
 			va: THREE.Vector3,
 			vb: THREE.Vector3,
-			tolerance: number = 1e-9
+			tolerance: number = 1e-3
 		) => {
-			return (
-				Math.abs(va.x - vb.x) < tolerance &&
-				Math.abs(va.y - vb.y) < tolerance &&
-				Math.abs(va.z - vb.z) < tolerance
-			);
+			return va.distanceToSquared(vb) < tolerance * tolerance;
 		};
 
 		const leftEdge = left.edges[1];
@@ -715,6 +402,35 @@ export class ECCSlicer implements SlicerBase {
 		}
 	}
 
+	private determineIntersectionType(
+		edge: ECCEdge,
+		sliceZ: number
+	): Array<boolean> {
+		let startOnSlice = false;
+		let endOnSlice = false;
+		if (veryClose(edge.start.vertex.z, sliceZ)) {
+			startOnSlice = true;
+		}
+		if (veryClose(edge.end.vertex.z, sliceZ)) {
+			endOnSlice = true;
+		}
+
+		const orientedEdge = [edge.start, edge.end].sort(
+			(a: ECCVertex, b: ECCVertex) => {
+				return a.vertex.z < b.vertex.z ? -1 : 1;
+			}
+		);
+		let shouldDiscard = false;
+		if (
+			orientedEdge[0].vertex.z > sliceZ ||
+			orientedEdge[1].vertex.z < sliceZ
+		) {
+			shouldDiscard = true;
+		}
+
+		return [startOnSlice, endOnSlice, shouldDiscard];
+	}
+
 	slice(): boolean {
 		if (this.triangles.length > 0) {
 			for (
@@ -722,81 +438,83 @@ export class ECCSlicer implements SlicerBase {
 				triIndex < this.triangles.length;
 				++triIndex
 			) {
-				this.triangles[triIndex].searchMinMaxZ();
+				const currentTriangle = this.triangles[triIndex];
+				currentTriangle.searchMinMaxZ();
 
-				const zOrderedTriangleSlices = this.triangles[
-					triIndex
-				].getSlices(this.layerHeight);
+				const zOrderedTriangleSlices = currentTriangle.getSlices(
+					this.layerHeight
+				);
 				if (zOrderedTriangleSlices.length == 0) {
-					console.error("Some error occured");
-					return false;
+					throw new Error("Some error occured");
 				}
 
 				//judge fw/bw edge
-				const fwBwEdges1 = this.triangles[triIndex].getFwBwEdges1();
+				const edgePairPass1 =
+					currentTriangle.getSlicedEdgePairForPhase(0);
 
-				// get fw edge line def
-				const fwLineDirection = new THREE.Vector3()
-					.subVectors(
-						fwBwEdges1[0].end.vertex,
-						fwBwEdges1[0].start.vertex
-					)
-					.normalize();
 				const slicePlane = new THREE.Plane(
 					new THREE.Vector3(0, 0, 1),
 					0
 				);
 				for (
 					let j = zOrderedTriangleSlices[0];
-					j < zOrderedTriangleSlices[1];
+					j <= zOrderedTriangleSlices[1];
 					j++
 				) {
 					slicePlane.constant = j * this.layerHeight;
-
+					const [_startOnSlice, _endOnSlice, shouldDiscard] =
+						this.determineIntersectionType(
+							edgePairPass1[0],
+							slicePlane.constant
+						);
+					if (shouldDiscard) continue;
 					const intersectionPoint = this.linePlaneIntersect(
 						slicePlane,
-						fwLineDirection,
-						fwBwEdges1[0].start.vertex
+						edgePairPass1[0]
 					);
-					const intersectionEntry: Intersection = {
-						prev: null,
-						next: null,
-						edges: fwBwEdges1,
-						intersectionVertex: intersectionPoint,
-					};
+					if (intersectionPoint !== undefined) {
+						const intersectionEntry: Intersection = {
+							prev: null,
+							next: null,
+							edges: edgePairPass1,
+							intersectionVertex: intersectionPoint,
+						};
 
-					// TODO insert to ILL/CLL/SA
-					this.insertIntersectionToCLL(intersectionEntry, j);
+						this.insertIntersectionToCLL(intersectionEntry, j);
+					}
 				}
 
 				// judge fw/bw edge for upper part
-				const fwBwEdges2 = this.triangles[triIndex].getFwBwEdges2();
+				const edgePairPass2 =
+					currentTriangle.getSlicedEdgePairForPhase(1);
 
-				const fwLine2Direction = fwBwEdges2[0].end.vertex
-					.clone()
-					.sub(fwBwEdges2[0].start.vertex)
-					.normalize();
 				for (
 					let k = zOrderedTriangleSlices[1];
-					k < zOrderedTriangleSlices[2];
+					k <= zOrderedTriangleSlices[2];
 					k++
 				) {
 					slicePlane.constant = k * this.layerHeight;
 
+					const [_startOnSlice, _endOnSlice, shouldDiscard] =
+						this.determineIntersectionType(
+							edgePairPass2[0],
+							slicePlane.constant
+						);
+					if (shouldDiscard) continue;
 					const intersectionPoint = this.linePlaneIntersect(
 						slicePlane,
-						fwLine2Direction,
-						fwBwEdges2[0].start.vertex
+						edgePairPass2[0]
 					);
-					const intersectionEntry: Intersection = {
-						prev: null,
-						next: null,
-						edges: fwBwEdges2,
-						intersectionVertex: intersectionPoint,
-					};
+					if (intersectionPoint !== undefined) {
+						const intersectionEntry: Intersection = {
+							prev: null,
+							next: null,
+							edges: edgePairPass2,
+							intersectionVertex: intersectionPoint,
+						};
 
-					// TODO insert to ILL/CLL/SA
-					this.insertIntersectionToCLL(intersectionEntry, k);
+						this.insertIntersectionToCLL(intersectionEntry, k);
+					}
 				}
 			}
 		}
@@ -807,6 +525,7 @@ export class ECCSlicer implements SlicerBase {
 		if (this.sliceArrayLL.length == 0)
 			return { contours: [new Float32Array(0)] };
 		// print contour list for slice x
+
 		const sliceReport =
 			this.sliceArrayLL[
 				Math.min(layerIndex, this.sliceArrayLL.length - 1)
@@ -814,9 +533,6 @@ export class ECCSlicer implements SlicerBase {
 		let totalIntersections = 0;
 		const contourList: LayerContours = { contours: [] };
 		sliceReport.traverse((cll: ILLType, _cllNode: ListNode<ILLType>) => {
-			if (getAppState().debug)
-				console.log("Traversing ILL, count: ", cll.getSize());
-
 			const accumulatedIntersections: Array<number> = [];
 			cll.traverse(
 				(
@@ -837,10 +553,7 @@ export class ECCSlicer implements SlicerBase {
 			return true;
 		});
 
-		if (getAppState().debug) {
-			console.log("Top level CLL count: ", sliceReport.getSize());
-			console.log(`Total intersections retrieved: ${totalIntersections}`);
-		}
+		console.log("Top level CLL count: ", sliceReport.getSize());
 		return contourList;
 	}
 }
