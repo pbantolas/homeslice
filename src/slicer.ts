@@ -11,6 +11,7 @@ export interface SlicerBase {
 	stats(): void;
 	slice(): boolean;
 	getLayer(layerIndex: number): LayerContours;
+	isSlicingComplete: boolean;
 }
 
 /* ECC Paper */
@@ -168,6 +169,7 @@ export class ECCSlicer implements SlicerBase {
 	private triangles: Array<ECCTriangle> = [];
 	private sliceArray: ContourList[] = [];
 	private sliceArrayLL: LinkedList<LinkedList<ECCIntersection>>[] = [];
+	isSlicingComplete: boolean = false;
 	layerHeight = 0.2;
 
 	importObject(object: THREE.Object3D) {
@@ -239,7 +241,7 @@ export class ECCSlicer implements SlicerBase {
 		const returnedPoint = planePoint.clone();
 		if (Math.abs(dotLN) < 1e-4) {
 			const p0SubL0 = planePoint.clone().sub(edge.start.vertex);
-			if (p0SubL0.dot(plane.normal) != 0)
+			if (Math.abs(p0SubL0.dot(plane.normal)) > 1e-4)
 				throw new Error(
 					"Line not contained in plane that should contain it."
 				);
@@ -432,6 +434,12 @@ export class ECCSlicer implements SlicerBase {
 	}
 
 	slice(): boolean {
+		let slicerSuccess = false;
+		if (this.isSlicingComplete) {
+			slicerSuccess = true;
+			return slicerSuccess;
+		}
+
 		if (this.triangles.length > 0) {
 			for (
 				let triIndex = 0;
@@ -517,8 +525,13 @@ export class ECCSlicer implements SlicerBase {
 					}
 				}
 			}
+
+			slicerSuccess = true;
 		}
-		return true;
+
+		if (this.sliceArrayLL.length > 0)
+			this.isSlicingComplete = slicerSuccess;
+		return slicerSuccess;
 	}
 
 	getLayer(layerIndex: number): LayerContours {

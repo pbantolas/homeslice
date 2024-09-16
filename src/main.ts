@@ -5,8 +5,9 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { ECCSlicer, SlicerBase } from "./slicer";
 import { PipeRenderer } from "./renderer";
+import SlicerUI from "./ui";
 
-export const HOMESLICE_VERSION = "0.1.1";
+export const HOMESLICE_VERSION = "0.2.0";
 
 interface AppState {
 	debug: boolean;
@@ -20,9 +21,15 @@ class App {
 	sceneGraph: THREE.Object3D[];
 	statusBar: HTMLElement | null;
 	activeSlicer?: SlicerBase;
+	private ui: SlicerUI;
 	private state: AppState;
 
-	constructor(statusBar: HTMLElement | null) {
+	constructor(
+		statusBar: HTMLElement | null,
+		sliceButton: HTMLElement | null,
+		viewSliceButton: HTMLElement | null,
+		layerNumberInput: HTMLInputElement | null
+	) {
 		this.scene = new THREE.Scene();
 		this.sceneGraph = [];
 		this.statusBar = statusBar;
@@ -31,6 +38,49 @@ class App {
 		};
 
 		console.log(`--- HomeSlice version ${HOMESLICE_VERSION}`);
+
+		this.ui = new SlicerUI({
+			sliceButton: sliceButton as HTMLButtonElement,
+			viewSliceButton: viewSliceButton as HTMLButtonElement,
+			layerNumberInput: layerNumberInput as HTMLInputElement,
+		});
+		const onboardingTimeout = setTimeout(() => {
+			document.querySelector("#help")?.classList.add("hidden");
+			if (window.localStorage) {
+				window.localStorage.setItem("isOnboardingComplete", "true");
+			}
+		}, 5000);
+		if (window.localStorage) {
+			const isOnboardingComplete = window.localStorage.getItem(
+				"isOnboardingComplete"
+			);
+			if (isOnboardingComplete !== null)
+				if (isOnboardingComplete == "true") {
+					document.querySelector("#help")?.classList.add("hidden");
+					clearTimeout(onboardingTimeout);
+				}
+		}
+
+		setTimeout(() => {
+			document.querySelector("#help")?.classList.add("hidden");
+		}, 5000);
+
+		this.ui.registerSliceCallback((): boolean => {
+			if (this.activeSlicer) {
+				const sliceResult = this.activeSlicer.slice();
+				return sliceResult;
+			}
+
+			return false;
+		});
+		this.ui.registerViewSliceCallback((layerNumber: number): boolean => {
+			if (this.activeSlicer && this.activeSlicer.isSlicingComplete) {
+				this.showSlice(layerNumber);
+				return true;
+			}
+
+			return false;
+		});
 
 		THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
 
@@ -221,6 +271,7 @@ class App {
 		const reader = new FileReader();
 		reader.addEventListener("load", (_ev) => {
 			if (reader.readyState == FileReader.DONE && reader.result != null) {
+				this.ui.resetUI();
 				const loader = new STLLoader();
 				const stlGeometry = loader.parse(reader.result);
 				let mat: THREE.Material = new THREE.MeshStandardMaterial({
@@ -290,51 +341,9 @@ class App {
 
 				if (this.activeSlicer) {
 					this.activeSlicer.importObject(slicerInputGroup);
+
+					this.ui.onSliceReady();
 					this.activeSlicer.stats();
-					this.activeSlicer.slice();
-
-					const contoursList = this.activeSlicer.getLayer(5);
-					const pipes = new PipeRenderer(0.15);
-					for (const contourItem of contoursList.contours) {
-						const pipeAssembly =
-							pipes.createAssemblyForBuffer(contourItem);
-						this.scene.add(pipeAssembly);
-						this.sceneGraph.push(pipeAssembly);
-					}
-
-					// debug spheres
-					if (false) {
-						let spheresAdded = 0;
-						let terminateSpheres = false;
-						for (const contourEntry of contoursList.contours) {
-							for (
-								let pIx = 0;
-								pIx < contourEntry.length / 3;
-								pIx++
-							) {
-								const sphGeo = new THREE.SphereGeometry(0.1);
-								const sphMat = new THREE.MeshBasicMaterial({
-									color: new THREE.Color("green"),
-								});
-								const m = new THREE.Mesh(sphGeo, sphMat);
-								m.position.set(
-									contourEntry[pIx * 3 + 0],
-									contourEntry[pIx * 3 + 1],
-									contourEntry[pIx * 3 + 2]
-								);
-								this.scene.add(m);
-								// spheresAdded++;
-								// if (spheresAdded >= 40) {
-								// 	console.log(
-								// 		"problematic at " + m.position.toArray()
-								// 	);
-								// 	terminateSpheres = true;
-								// 	break;
-								// }
-							}
-							if (terminateSpheres) break;
-						}
-					}
 				}
 
 				this.zoomToMesh(stlViewerGroup);
@@ -342,6 +351,49 @@ class App {
 		});
 
 		reader.readAsArrayBuffer(f);
+	}
+
+	showSlice(sliceIx: number): void {
+		if (!this.activeSlicer) return;
+		if (this.activeSlicer.isSlicingComplete) {
+			const contoursList = this.activeSlicer.getLayer(sliceIx);
+			const pipes = new PipeRenderer(0.15);
+			for (const contourItem of contoursList.contours) {
+				const pipeAssembly = pipes.createAssemblyForBuffer(contourItem);
+				this.scene.add(pipeAssembly);
+				this.sceneGraph.push(pipeAssembly);
+			}
+
+			// debug spheres
+			if (false) {
+				let spheresAdded = 0;
+				let terminateSpheres = false;
+				for (const contourEntry of contoursList.contours) {
+					for (let pIx = 0; pIx < contourEntry.length / 3; pIx++) {
+						const sphGeo = new THREE.SphereGeometry(0.1);
+						const sphMat = new THREE.MeshBasicMaterial({
+							color: new THREE.Color("green"),
+						});
+						const m = new THREE.Mesh(sphGeo, sphMat);
+						m.position.set(
+							contourEntry[pIx * 3 + 0],
+							contourEntry[pIx * 3 + 1],
+							contourEntry[pIx * 3 + 2]
+						);
+						this.scene.add(m);
+						// spheresAdded++;
+						// if (spheresAdded >= 40) {
+						// 	console.log(
+						// 		"problematic at " + m.position.toArray()
+						// 	);
+						// 	terminateSpheres = true;
+						// 	break;
+						// }
+					}
+					if (terminateSpheres) break;
+				}
+			}
+		}
 	}
 
 	public getPublicState(): AppState {
@@ -353,10 +405,11 @@ export function getAppState(): AppState {
 	return appInstance.getPublicState();
 }
 
-const appInstance: App = new App(document.querySelector("#status-bar"));
+const appInstance: App = new App(
+	document.querySelector("#status-text"),
+	document.querySelector("#slice-btn"),
+	document.querySelector("#view-slice-btn"),
+	document.querySelector("#layer-number-input")
+);
 
 appInstance.addDragHandling(document.querySelector("#dropzone")!);
-
-setTimeout(() => {
-	document.querySelector("#help")?.classList.add("hidden");
-}, 5000);

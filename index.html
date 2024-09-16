@@ -9,7 +9,9 @@
 
 	<body>
 		<div id="help" class="fixed inset-0 overflow-auto flex z-20">
-			<div class="rounded-lg relative text-center bg-gray-800 bg-opacity-75 p-9 w-full max-w-md m-auto flex-col flex text-white">
+			<div
+				class="rounded-lg relative text-center bg-gray-800 bg-opacity-75 p-9 w-full max-w-md m-auto flex-col flex text-white"
+			>
 				<h1 class="text-2xl">HomeSlice</h1>
 				<p>Start by dragging an .stl file to the plate</p>
 			</div>
@@ -20,7 +22,38 @@
 		>
 			Drop .STL files here
 		</div>
-		<div id="status-bar" class="fixed w-full left-0 bottom-0 bg-slate-700 bg-opacity-50 text-white text-xl py-1">status</div>
+		<div
+			id="status-bar"
+			class="fixed w-full p-4 left-0 bottom-0 h-16 flex items-center bg-zinc-800 bg-opacity-80 text-white text-xl"
+		>
+			<div id="status-text" class="flex-1"></div>
+			<div id="status-buttons" class="flex-none">
+				<input
+					type="text"
+					name=""
+					id="layer-number-input"
+					class="bg-zinc-700 border-x-0 border-zinc-600 rounded w-16 h-8 text-center text-sm"
+					placeholder="layer #"
+					value=""
+				/>
+				<button
+					id="slice-btn"
+					disabled
+					type="button"
+					class="rounded-md inline-flex py-2 px-4 disabled:cursor-default cursor-pointer disabled:bg-zinc-400 bg-sky-600 border border-transparent text-center text-sm"
+				>
+					Slice
+				</button>
+				<button
+					id="view-slice-btn"
+					disabled
+					type="button"
+					class="rounded-md inline-flex py-2 px-4 disabled:cursor-not-allowed cursor-pointer disabled:bg-zinc-400 bg-sky-600 border border-transparent text-center text-sm"
+				>
+					View Slice
+				</button>
+			</div>
+		</div>
 		<script type="module" src="src/main.ts"></script>
 	</body>
 </html>
