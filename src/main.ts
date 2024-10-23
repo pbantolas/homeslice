@@ -23,6 +23,7 @@ class App {
 	activeSlicer?: SlicerBase;
 	private ui: SlicerUI;
 	private state: AppState;
+	private pmremGen: THREE.PMREMGenerator;
 
 	constructor(
 		statusBar: HTMLElement | null,
@@ -88,18 +89,6 @@ class App {
 			this.statusBar.innerText = "No file loaded!";
 		}
 
-		new RGBELoader()
-			.setPath("assets/")
-			.load("machine_shop_01_1k.hdr", (texture) => {
-				texture.mapping = THREE.EquirectangularReflectionMapping;
-				this.scene.environment = texture;
-				this.scene.environmentRotation.set(Math.PI / 2, 0, Math.PI / 2);
-				this.scene.environmentIntensity = 0.7;
-				this.scene.background = new THREE.Color("rgb(20, 20, 20)");
-				// this.scene.background = texture;
-				// this.scene.backgroundRotation = this.scene.environmentRotation;
-			});
-
 		this.camera = new THREE.PerspectiveCamera(
 			75,
 			window.innerWidth / window.innerHeight,
@@ -112,6 +101,22 @@ class App {
 		this.renderer.shadowMap.type = THREE.PCFShadowMap;
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
 		document.body.appendChild(this.renderer.domElement);
+
+		this.pmremGen = new THREE.PMREMGenerator(this.renderer);
+		new RGBELoader()
+			.setPath("assets/")
+			.load("machine_shop_01_1k.hdr", (texture) => {
+				texture.mapping = THREE.EquirectangularReflectionMapping;
+				const filteredTexture =
+					this.pmremGen.fromEquirectangular(texture).texture;
+				filteredTexture.mapping = THREE.CubeUVReflectionMapping;
+				this.scene.environment = filteredTexture;
+				this.scene.environmentRotation.set(Math.PI / 2, 0, Math.PI / 2);
+				this.scene.environmentIntensity = 0.7;
+				this.scene.background = new THREE.Color("rgb(20, 20, 20)");
+				// this.scene.background = filteredTexture;
+				// this.scene.backgroundRotation = this.scene.environmentRotation;
+			});
 
 		this.cameraController = new OrbitControls(
 			this.camera,
